@@ -206,76 +206,61 @@ async def google_callback(
     # Redirect to frontend
     return {"success": True, "integration": "google", "email": user_info.get("email")}
 
-# Jira Integration
-@router.get("/integrations/jira/connect")
+@app.get("/integrations/jira/connect")
 async def jira_connect(
     current_user: DBUser = Depends(get_current_active_user)
 ):
-    """Get Jira OAuth URL."""
-    jira_service = JiraService("", settings.jira_server)
-    oauth_url = jira_service.get_oauth_url(str(current_user.id))
-    return {"url": oauth_url}
+    """Get Jira OAuth URL for authentication."""
+    try:
+        jira_service = JiraService("", settings.jira_server)
+        oauth_url = await jira_service.get_oauth_url(state=str(current_user.id))
+        return {"oauth_url": oauth_url}
+    except Exception as e:
+        print(f"Error in jira_connect: {e}")
+        raise HTTPException(status_code=500, detail=f"OAuth setup failed: {str(e)}")
 
-@router.get("/integrations/jira/callback")
+@app.get("/integrations/jira/callback")
 async def jira_callback(
     request: Request,
     db: Session = Depends(get_db)
 ):
     """Handle Jira OAuth callback."""
-    # Get code from query parameters
     code = request.query_params.get("code")
-    if not code:
-        raise HTTPException(status_code=400, detail="Missing code parameter")
-    
-    # Get state from query parameters (contains user_id)
     state = request.query_params.get("state")
-    if not state:
-        raise HTTPException(status_code=400, detail="Missing state parameter")
+    
+    if not code:
+        raise HTTPException(status_code=400, detail="Authorization code not provided")
     
     try:
-        user_id = int(state)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid state parameter")
-    
-    # Exchange code for access token
-    jira_service = JiraService("", settings.jira_server)
-    token_info = await jira_service.exchange_code_for_token(code)
-    
-    if not token_info or "access_token" not in token_info:
-        raise HTTPException(status_code=400, detail="Failed to get access token")
-    
-    access_token = token_info["access_token"]
-    
-    # Get user info to verify connection
-    jira_service = JiraService(access_token, settings.jira_server)
-    user_info = await jira_service.get_user_info()
-    
-    if not user_info:
-        raise HTTPException(status_code=400, detail="Failed to get user info")
-    
-    # Check if integration already exists
-    integration = db.query(Integration).filter(
-        Integration.user_id == user_id,
-        Integration.service_name == "jira"
-    ).first()
-    
-    if integration:
-        # Update existing integration
-        integration.access_token = access_token
-        integration.is_active = True
-        integration.metadata = json.dumps(user_info)
-    else:
-        # Create new integration
-        integration = Integration(
-            user_id=user_id,
-            service_name="jira",
-            access_token=access_token,
-            is_active=True,
-            metadata=json.dumps(user_info)
-        )
-        db.add(integration)
-    
-    db.commit()
-    
-    # Redirect to frontend
-    return {"success": True, "integration": "jira", "username": user_info.get("name")}
+        user_id = int(state) if state else None
+        if not user_id:
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+        
+        jira_service = JiraService("", settings.jira_server)
+        token_data = await jira_service.exchange_code_for_token(code)
+        
+        if "access_token" not in token_data:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+        
+        # Store integration
+        integration = db.query(Integration).filter(
+            Integration.user_id == user_id,
+            Integration.service_name == "jira"
+        ).first()
+        
+        if integration:
+            integration.access_token = token_data["access_token"]
+            integration.is_active = True
+        else:
+            integration = Integration(
+                user_id=user_id,
+                service_name="jira",
+                access_token=token_data["access_token"]
+            )
+            db.add(integration)
+        
+        db.commit()
+        return {"message": "Jira integration successful"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Integration failed: {str(e)}")
