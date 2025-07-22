@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import Layout from './components/Layout'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 
@@ -14,7 +15,9 @@ function App() {
             path="/dashboard" 
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <Layout>
+                  <Dashboard />
+                </Layout>
               </ProtectedRoute>
             } 
           />
@@ -22,7 +25,9 @@ function App() {
             path="/home" 
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <Layout>
+                  <Dashboard />
+                </Layout>
               </ProtectedRoute>
             } 
           />
