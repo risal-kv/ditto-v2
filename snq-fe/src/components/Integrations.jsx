@@ -123,27 +123,7 @@ const Integrations = () => {
     return Settings
   }
 
-  // Get status color for tickets
-  const getStatusColor = (status) => {
-    const statusColors = {
-      'To Do': 'text-gray-400',
-      'In Progress': 'text-blue-400',
-      'Done': 'text-green-400',
-      'Blocked': 'text-red-400',
-      'Review': 'text-yellow-400'
-    }
-    return statusColors[status] || 'text-gray-400'
-  }
 
-  // Get priority color
-  const getPriorityColor = (priority) => {
-    const priorityColors = {
-      'High': 'text-red-400',
-      'Medium': 'text-yellow-400',
-      'Low': 'text-green-400'
-    }
-    return priorityColors[priority] || 'text-gray-400'
-  }
 
   const handleIntegrationClick = async (integration) => {
     if (integration.connect_url && !connectingIntegration) {
@@ -165,9 +145,9 @@ const Integrations = () => {
           const data = await response.json()
           
           // Check if oauth_url is present in the response
-          if (data.oauth_url) {
+          if (data.url) {
             // Redirect to OAuth URL for authentication
-            window.open(data.oauth_url, '_blank')
+            window.open(data.url, '_blank')
             
             // Add to connected integrations with pending status
             const newConnectedIntegration = {
@@ -631,7 +611,6 @@ const Integrations = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {widgets.map((widget, index) => {
                 const WidgetIcon = getWidgetIcon(widget.widget_type, widget.service_name)
-                const tickets = widget.data?.tickets || []
                 
                 return (
                   <motion.div
@@ -641,7 +620,7 @@ const Integrations = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
                   >
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="p-3 bg-blue-600/20 rounded-xl">
                           <WidgetIcon className="w-6 h-6 text-blue-400" />
@@ -651,76 +630,17 @@ const Integrations = () => {
                             {widget.widget_type} Widget
                           </h3>
                           <p className="text-sm text-gray-400 capitalize">
-                            {widget.service_name} • {tickets.length} items
+                            {widget.service_name}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          widget.is_active 
-                            ? 'bg-green-600/20 text-green-400' 
-                            : 'bg-gray-600/20 text-gray-400'
-                        }`}>
-                          {widget.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
-                    </div>
-
-                                         {tickets.length > 0 ? (
-                       <div className="space-y-3">
-                         {tickets.slice(0, 3).map((ticket) => (
-                          <div
-                            key={ticket.id}
-                            className="p-3 bg-gray-700/30 rounded-lg border border-gray-600/50 hover:bg-gray-700/50 transition-colors duration-200"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm font-medium text-blue-400">
-                                  {ticket.key}
-                                </span>
-                                <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(ticket.status)}`}>
-                                  {ticket.status}
-                                </span>
-                              </div>
-                              <span className={`text-xs ${getPriorityColor(ticket.priority)}`}>
-                                {ticket.priority}
-                              </span>
-                            </div>
-                            <h4 className="text-sm font-medium text-gray-100 mb-2">
-                              {ticket.title}
-                            </h4>
-                            <div className="flex items-center justify-between text-xs text-gray-400">
-                              <div className="flex items-center space-x-1">
-                                <User className="w-3 h-3" />
-                                <span>{ticket.assignee}</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <Clock className="w-3 h-3" />
-                                <span>{new Date(ticket.updated_at).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {tickets.length > 3 && (
-                          <div className="text-center">
-                            <span className="text-sm text-gray-400">
-                              +{tickets.length - 3} more tickets
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6">
-                        <Ticket className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                        <p className="text-gray-400 text-sm">No tickets available</p>
-                      </div>
-                    )}
-
-                    <div className="mt-4 pt-4 border-t border-gray-700">
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>Position: ({widget.position_x}, {widget.position_y})</span>
-                        <span>Size: {widget.width}×{widget.height}</span>
-                      </div>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        widget.is_active 
+                          ? 'bg-green-600/20 text-green-400' 
+                          : 'bg-gray-600/20 text-gray-400'
+                      }`}>
+                        {widget.is_active ? 'Active' : 'Inactive'}
+                      </span>
                     </div>
                   </motion.div>
                 )
