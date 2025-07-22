@@ -15,7 +15,36 @@ import {
   MicOff,
   Save,
   X,
-  Volume2
+  Volume2,
+  FileText,
+  Ticket,
+  Circle,
+  Minus,
+  ExternalLink,
+  Tag,
+  Pin,
+  GitPullRequest,
+  GitBranch,
+  MessageSquare,
+  Clock,
+  User,
+  TrendingUp,
+  Activity,
+  Plus,
+  Settings,
+  Bell,
+  Search,
+  Filter,
+  MoreVertical,
+  ArrowUpRight,
+  Clock as ClockIcon,
+  Star,
+  Eye,
+  Heart,
+  Share2,
+  Bookmark,
+  Download,
+  Upload,
 } from 'lucide-react'
 
 const Dashboard = () => {
@@ -36,6 +65,9 @@ const Dashboard = () => {
   const [syncingFireflies, setSyncingFireflies] = useState(false)
   const [uploadingRequirements, setUploadingRequirements] = useState(false)
   const [noteTitle, setNoteTitle] = useState('')
+  const [dashboardNoteTitle, setDashboardNoteTitle] = useState('')
+  const [allNotes, setAllNotes] = useState([])
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false)
 
   useEffect(() => {
     // Trigger animations after component mounts
@@ -49,6 +81,11 @@ const Dashboard = () => {
       fetchDashboardData()
     }
   }, [dashboardId])
+
+  useEffect(() => {
+    // Fetch all notes when component mounts
+    fetchAllNotes()
+  }, [])
 
   const fetchDashboardData = async () => {
     try {
@@ -65,6 +102,30 @@ const Dashboard = () => {
       console.error('Dashboard fetch error:', err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchAllNotes = async () => {
+    try {
+      setIsLoadingNotes(true)
+      const response = await fetch('https://evident-upward-mudfish.ngrok-free.app/notes/', {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('synq_token')}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const notesData = await response.json()
+      setAllNotes(notesData)
+    } catch (error) {
+      console.error('Error fetching notes:', error)
+    } finally {
+      setIsLoadingNotes(false)
     }
   }
 
@@ -245,15 +306,63 @@ const Dashboard = () => {
       const savedNote = await response.json()
       console.log('Note saved successfully:', savedNote)
       
-      // Reset form
+      // Reset form and refresh notes
       setNoteTitle('')
       setTranscription('')
       setAudioBlob(null)
       setShowVoiceBot(false)
+      fetchAllNotes() // Refresh the notes list
       
       alert('Note saved successfully!')
     } catch (error) {
       console.error('Error saving notes:', error)
+      alert(`Failed to save notes: ${error.message}`)
+    } finally {
+      setIsSavingNotes(false)
+    }
+  }
+
+  const saveDashboardNotes = async () => {
+    try {
+      // Validate title is provided
+      if (!dashboardNoteTitle.trim()) {
+        alert('Please enter a title for your note.')
+        return
+      }
+
+      setIsSavingNotes(true)
+      
+      // Call the notes API
+      const response = await fetch('https://evident-upward-mudfish.ngrok-free.app/notes/', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('synq_token')}`
+        },
+        body: JSON.stringify({
+          title: dashboardNoteTitle.trim(),
+          content: notes.trim(),
+          is_pinned: false
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+
+      const savedNote = await response.json()
+      console.log('Dashboard note saved successfully:', savedNote)
+      
+      // Reset form and refresh notes
+      setDashboardNoteTitle('')
+      setNotes('')
+      fetchAllNotes() // Refresh the notes list
+      
+      alert('Note saved successfully!')
+    } catch (error) {
+      console.error('Error saving dashboard notes:', error)
       alert(`Failed to save notes: ${error.message}`)
     } finally {
       setIsSavingNotes(false)
@@ -322,6 +431,520 @@ const Dashboard = () => {
       alert('Failed to upload requirements. Please try again.')
     } finally {
       setUploadingRequirements(false)
+    }
+  }
+
+  // Widget Helper Functions
+  const getWidgetIcon = (widgetType) => {
+    switch (widgetType) {
+      case 'tickets':
+        return <Ticket className="w-5 h-5" />
+      case 'pull_requests':
+        return <GitPullRequest className="w-5 h-5" />
+      case 'issues':
+        return <AlertTriangle className="w-5 h-5" />
+      case 'notes_list':
+        return <FileText className="w-5 h-5" />
+      case 'calendar':
+        return <Calendar className="w-5 h-5" />
+      default:
+        return <Activity className="w-5 h-5" />
+    }
+  }
+
+  const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'open':
+        return <Circle className="w-3 h-3 text-green-400" />
+      case 'closed':
+        return <CheckCircle className="w-3 h-3 text-gray-400" />
+      case 'merged':
+        return <CheckCircle className="w-3 h-3 text-blue-400" />
+      case 'to do':
+        return <Circle className="w-3 h-3 text-gray-400" />
+      case 'in progress':
+        return <Minus className="w-3 h-3 text-yellow-400" />
+      case 'done':
+        return <CheckCircle className="w-3 h-3 text-green-400" />
+      default:
+        return <Circle className="w-3 h-3 text-gray-400" />
+    }
+  }
+
+  const getPriorityColor = (priority) => {
+    switch (priority?.toLowerCase()) {
+      case 'high':
+        return 'text-red-400 bg-red-400/10'
+      case 'medium':
+        return 'text-yellow-400 bg-yellow-400/10'
+      case 'low':
+        return 'text-green-400 bg-green-400/10'
+      default:
+        return 'text-gray-400 bg-gray-400/10'
+    }
+  }
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'open':
+        return 'text-green-400 bg-green-400/10'
+      case 'closed':
+        return 'text-gray-400 bg-gray-400/10'
+      case 'merged':
+        return 'text-blue-400 bg-blue-400/10'
+      case 'to do':
+        return 'text-gray-400 bg-gray-400/10'
+      case 'in progress':
+        return 'text-yellow-400 bg-yellow-400/10'
+      case 'done':
+        return 'text-green-400 bg-green-400/10'
+      default:
+        return 'text-gray-400 bg-gray-400/10'
+    }
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
+  const formatTime = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true
+    })
+  }
+
+  const isAllDayEvent = (startTime, endTime) => {
+    if (!startTime || !endTime) return false
+    const start = new Date(startTime)
+    const end = new Date(endTime)
+    const startHours = start.getHours()
+    const endHours = end.getHours()
+    return startHours === 0 && endHours === 23
+  }
+
+  const getEventColor = (event) => {
+    const title = event.title?.toLowerCase() || ''
+    if (title.includes('standup') || title.includes('meeting')) {
+      return 'bg-blue-400/20 text-blue-300 border-blue-400/30'
+    }
+    if (title.includes('holiday')) {
+      return 'bg-red-400/20 text-red-300 border-red-400/30'
+    }
+    if (title.includes('home')) {
+      return 'bg-green-400/20 text-green-300 border-green-400/30'
+    }
+    if (title.includes('office')) {
+      return 'bg-purple-400/20 text-purple-300 border-purple-400/30'
+    }
+    return 'bg-gray-400/20 text-gray-300 border-gray-400/30'
+  }
+
+  const renderTicketsWidget = (widget) => {
+    const tickets = widget.data?.tickets || []
+    
+    return (
+      <motion.div
+        className="card"
+        variants={cardVariants}
+        whileHover="hover"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            {getWidgetIcon(widget.widget_type)}
+            <h3 className="text-lg font-semibold text-gray-100">Jira Tickets</h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-400">{tickets.length} tickets</span>
+            <div className={`w-2 h-2 rounded-full ${widget.is_active ? 'bg-green-400' : 'bg-gray-400'}`} />
+          </div>
+        </div>
+        
+        <div className="space-y-3">
+          {tickets.map((ticket) => (
+            <motion.div
+              key={ticket.id}
+              className="p-3 bg-gray-700/30 rounded-lg border border-gray-600/30 hover:bg-gray-700/50 transition-colors"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  {getStatusIcon(ticket.status)}
+                  <span className="font-medium text-gray-100">{ticket.key}</span>
+                </div>
+                <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(ticket.priority)}`}>
+                  {ticket.priority}
+                </span>
+              </div>
+              <h4 className="text-sm text-gray-200 mb-2">{ticket.title}</h4>
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <div className="flex items-center space-x-1">
+                  <User className="w-3 h-3" />
+                  <span>{ticket.assignee}</span>
+                </div>
+                <span>{formatDate(ticket.updated_at)}</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+    )
+  }
+
+  const renderPullRequestsWidget = (widget) => {
+    const pullRequests = widget.data?.pull_requests || []
+    
+    return (
+      <motion.div
+        className="card"
+        variants={cardVariants}
+        whileHover="hover"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            {getWidgetIcon(widget.widget_type)}
+            <h3 className="text-lg font-semibold text-gray-100">Pull Requests</h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-400">{pullRequests.length} PRs</span>
+            <div className={`w-2 h-2 rounded-full ${widget.is_active ? 'bg-green-400' : 'bg-gray-400'}`} />
+          </div>
+        </div>
+        
+        <div className="space-y-3">
+          {pullRequests.slice(0, 5).map((pr) => (
+            <motion.div
+              key={pr.id}
+              className="p-3 bg-gray-700/30 rounded-lg border border-gray-600/30 hover:bg-gray-700/50 transition-colors"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  {getStatusIcon(pr.state)}
+                  <span className="font-medium text-gray-100">#{pr.id}</span>
+                </div>
+                <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(pr.state)}`}>
+                  {pr.state}
+                </span>
+              </div>
+              <h4 className="text-sm text-gray-200 mb-2 line-clamp-2">{pr.title}</h4>
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <div className="flex items-center space-x-1">
+                  <User className="w-3 h-3" />
+                  <span>{pr.author}</span>
+                </div>
+                <span>{formatDate(pr.updated_at)}</span>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                {pr.repository}
+              </div>
+            </motion.div>
+          ))}
+          {pullRequests.length > 5 && (
+            <div className="text-center text-sm text-gray-400">
+              +{pullRequests.length - 5} more pull requests
+            </div>
+          )}
+        </div>
+      </motion.div>
+    )
+  }
+
+  const renderIssuesWidget = (widget) => {
+    const issues = widget.data?.issues || []
+    
+    return (
+      <motion.div
+        className="card"
+        variants={cardVariants}
+        whileHover="hover"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            {getWidgetIcon(widget.widget_type)}
+            <h3 className="text-lg font-semibold text-gray-100">GitHub Issues</h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-400">{issues.length} issues</span>
+            <div className={`w-2 h-2 rounded-full ${widget.is_active ? 'bg-green-400' : 'bg-gray-400'}`} />
+          </div>
+        </div>
+        
+        <div className="space-y-3">
+          {issues.slice(0, 5).map((issue) => (
+            <motion.div
+              key={issue.id}
+              className="p-3 bg-gray-700/30 rounded-lg border border-gray-600/30 hover:bg-gray-700/50 transition-colors"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  {getStatusIcon(issue.state)}
+                  <span className="font-medium text-gray-100">#{issue.id}</span>
+                </div>
+                <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(issue.state)}`}>
+                  {issue.state}
+                </span>
+              </div>
+              <h4 className="text-sm text-gray-200 mb-2 line-clamp-2">{issue.title}</h4>
+              {issue.labels && issue.labels.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {issue.labels.slice(0, 3).map((label, index) => (
+                    <span
+                      key={index}
+                      className="px-2 py-1 text-xs bg-blue-400/20 text-blue-300 rounded-full"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                  {issue.labels.length > 3 && (
+                    <span className="px-2 py-1 text-xs text-gray-400">
+                      +{issue.labels.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span>{issue.repository}</span>
+                <span>{formatDate(issue.updated_at)}</span>
+              </div>
+            </motion.div>
+          ))}
+          {issues.length > 5 && (
+            <div className="text-center text-sm text-gray-400">
+              +{issues.length - 5} more issues
+            </div>
+          )}
+        </div>
+      </motion.div>
+    )
+  }
+
+  const renderNotesListWidget = (widget) => {
+    const notes = widget.data?.notes || []
+    
+    return (
+      <motion.div
+        className="card"
+        variants={cardVariants}
+        whileHover="hover"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            {getWidgetIcon(widget.widget_type)}
+            <h3 className="text-lg font-semibold text-gray-100">Notes</h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-400">{notes.length} notes</span>
+            <div className={`w-2 h-2 rounded-full ${widget.is_active ? 'bg-green-400' : 'bg-gray-400'}`} />
+          </div>
+        </div>
+        
+        <div className="space-y-3">
+          {notes.map((note) => (
+            <motion.div
+              key={note.id}
+              className="p-3 bg-gray-700/30 rounded-lg border border-gray-600/30 hover:bg-gray-700/50 transition-colors"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  {note.is_pinned ? <Pin className="w-3 h-3 text-yellow-400" /> : <FileText className="w-3 h-3 text-gray-400" />}
+                  <span className="font-medium text-gray-100">{note.title}</span>
+                </div>
+                {note.is_pinned && (
+                  <span className="px-2 py-1 text-xs bg-yellow-400/20 text-yellow-300 rounded-full">
+                    Pinned
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-300 mb-2 line-clamp-3">{note.content}</p>
+              <div className="text-xs text-gray-400">
+                {formatDate(note.updated_at)}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+    )
+  }
+
+  const renderCalendarWidget = (widget) => {
+    const events = widget.data?.events || []
+    
+    // Group events by date
+    const eventsByDate = events.reduce((acc, event) => {
+      const startDate = new Date(event.start_time)
+      const dateKey = startDate.toDateString()
+      
+      if (!acc[dateKey]) {
+        acc[dateKey] = []
+      }
+      acc[dateKey].push(event)
+      return acc
+    }, {})
+
+    // Sort dates and get upcoming events (next 7 days)
+    const sortedDates = Object.keys(eventsByDate).sort()
+    const today = new Date()
+    const upcomingDates = sortedDates.filter(dateStr => {
+      const date = new Date(dateStr)
+      const diffTime = date.getTime() - today.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      return diffDays >= -1 && diffDays <= 7 // Include today and next 7 days
+    })
+
+    return (
+      <motion.div
+        className="card"
+        variants={cardVariants}
+        whileHover="hover"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            {getWidgetIcon(widget.widget_type)}
+            <h3 className="text-lg font-semibold text-gray-100">Google Calendar</h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-400">{events.length} events</span>
+            <div className={`w-2 h-2 rounded-full ${widget.is_active ? 'bg-green-400' : 'bg-gray-400'}`} />
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          {upcomingDates.slice(0, 5).map((dateStr) => {
+            const date = new Date(dateStr)
+            const dayEvents = eventsByDate[dateStr]
+            
+            return (
+              <motion.div
+                key={dateStr}
+                className="space-y-2"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="text-sm font-medium text-gray-300">
+                    {date.toLocaleDateString('en-US', { 
+                      weekday: 'short', 
+                      month: 'short', 
+                      day: 'numeric' 
+                    })}
+                  </div>
+                  {date.toDateString() === today.toDateString() && (
+                    <span className="px-2 py-1 text-xs bg-blue-400/20 text-blue-300 rounded-full">
+                      Today
+                    </span>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  {dayEvents.map((event) => (
+                    <motion.div
+                      key={event.id}
+                      className={`p-3 rounded-lg border ${getEventColor(event)} hover:opacity-80 transition-opacity`}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                    >
+                      <div className="flex items-start justify-between mb-1">
+                        <h4 className="text-sm font-medium line-clamp-1">{event.title}</h4>
+                        {isAllDayEvent(event.start_time, event.end_time) && (
+                          <span className="px-2 py-1 text-xs bg-gray-400/20 text-gray-300 rounded-full ml-2">
+                            All Day
+                          </span>
+                        )}
+                      </div>
+                      
+                      {!isAllDayEvent(event.start_time, event.end_time) && (
+                        <div className="flex items-center space-x-2 text-xs text-gray-400">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            {formatTime(event.start_time)} - {formatTime(event.end_time)}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {event.description && (
+                        <p className="text-xs text-gray-400 mt-1 line-clamp-2">
+                          {event.description}
+                        </p>
+                      )}
+                      
+                      {event.location && (
+                        <div className="flex items-center space-x-1 text-xs text-gray-400 mt-1">
+                          <span>📍</span>
+                          <span className="line-clamp-1">{event.location}</span>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )
+          })}
+          
+          {upcomingDates.length === 0 && (
+            <div className="text-center py-8">
+              <Calendar className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+              <p className="text-gray-400">No upcoming events</p>
+              <p className="text-sm text-gray-500">Check back later for new events</p>
+            </div>
+          )}
+          
+          {upcomingDates.length > 5 && (
+            <div className="text-center text-sm text-gray-400">
+              +{upcomingDates.length - 5} more days with events
+            </div>
+          )}
+        </div>
+      </motion.div>
+    )
+  }
+
+  const renderWidget = (widget) => {
+    switch (widget.widget_type) {
+      case 'tickets':
+        return renderTicketsWidget(widget)
+      case 'pull_requests':
+        return renderPullRequestsWidget(widget)
+      case 'issues':
+        return renderIssuesWidget(widget)
+      case 'notes_list':
+        return renderNotesListWidget(widget)
+      case 'calendar':
+        return renderCalendarWidget(widget)
+      default:
+        return (
+          <motion.div
+            className="card"
+            variants={cardVariants}
+            whileHover="hover"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                {getWidgetIcon(widget.widget_type)}
+                <h3 className="text-lg font-semibold text-gray-100">
+                  {widget.widget_type.replace('_', ' ').toUpperCase()}
+                </h3>
+              </div>
+              <div className={`w-2 h-2 rounded-full ${widget.is_active ? 'bg-green-400' : 'bg-gray-400'}`} />
+            </div>
+            <p className="text-gray-400">Widget type not implemented yet</p>
+          </motion.div>
+        )
     }
   }
 
@@ -956,6 +1579,37 @@ const Dashboard = () => {
         </div>
         )}
 
+        {/* Widgets Section */}
+        {!isLoading && !error && dashboardData?.widgets && dashboardData.widgets.length > 0 && (
+          <motion.div
+            className="mt-8"
+            variants={itemVariants}
+          >
+            <div className="card">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-100">Active Widgets</h3>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-400">{dashboardData.widgets.length} widgets</span>
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {dashboardData.widgets.map((widget, index) => (
+                  <motion.div
+                    key={widget.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    {renderWidget(widget)}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Notes Section */}
         {!isLoading && !error && (
           <motion.div
@@ -970,17 +1624,36 @@ const Dashboard = () => {
                   <span className="text-sm text-gray-400">Voice notes enabled</span>
                 </div>
               </div>
+              
+              {/* Title Input */}
+              <div className="mb-4">
+                <label htmlFor="dashboardNoteTitle" className="block text-sm font-medium text-gray-300 mb-2">
+                  Note Title *
+                </label>
+                <input
+                  id="dashboardNoteTitle"
+                  type="text"
+                  value={dashboardNoteTitle}
+                  onChange={(e) => setDashboardNoteTitle(e.target.value)}
+                  placeholder="Enter a title for your note..."
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                  required
+                />
+              </div>
+
+              {/* Notes Textarea */}
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add your notes here... Use the voice bot to add voice notes!"
                 className="w-full h-32 p-4 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
               />
+              
               <div className="flex justify-end mt-4">
                 <button
-                  onClick={saveNotes}
-                  disabled={isSavingNotes}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center space-x-2"
+                  onClick={saveDashboardNotes}
+                  disabled={isSavingNotes || !dashboardNoteTitle.trim()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center space-x-2"
                 >
                   {isSavingNotes ? (
                     <>
@@ -995,6 +1668,61 @@ const Dashboard = () => {
                   )}
                 </button>
               </div>
+            </div>
+
+            {/* All Notes List */}
+            <div className="card mt-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-100">All Notes</h3>
+                <button
+                  onClick={fetchAllNotes}
+                  disabled={isLoadingNotes}
+                  className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 text-gray-400 ${isLoadingNotes ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              
+              {isLoadingNotes ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  <span className="ml-2 text-gray-400">Loading notes...</span>
+                </div>
+              ) : allNotes.length > 0 ? (
+                <div className="space-y-4">
+                  {allNotes.map((note) => (
+                    <motion.div
+                      key={note.id}
+                      className="p-4 bg-gray-700/30 rounded-lg border border-gray-600/50 hover:bg-gray-700/50 transition-colors"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-medium text-gray-100">{note.title}</h4>
+                        <div className="flex items-center space-x-2">
+                          {note.is_pinned && (
+                            <span className="px-2 py-1 text-xs bg-yellow-600/20 text-yellow-400 rounded-full">
+                              Pinned
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-400">
+                            {new Date(note.created_at || note.updated_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-300 whitespace-pre-wrap">
+                        {note.content}
+                      </p>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+                  <p className="text-gray-400">No notes found</p>
+                  <p className="text-sm text-gray-500">Create your first note above</p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
