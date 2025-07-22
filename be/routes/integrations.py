@@ -49,6 +49,13 @@ async def get_available_integrations():
             "description": "Internal note-taking system. Create, manage, and organize your personal notes.",
             "icon": "https://cdn-icons-png.flaticon.com/512/3959/3959542.png",
             "connect_url": "/integrations/notes/connect"
+        },
+        {
+            "id": "news",
+            "name": "Competitor Analysis",
+            "description": "Connect to competitor analysis service.",
+            "icon": "https://cdn-icons-png.flaticon.com/512/3959/3959543.png",
+            "connect_url": "/integrations/news/connect"
         }
     ]
     return {"integrations": integrations}
