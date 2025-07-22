@@ -1,51 +1,23 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { 
   CheckCircle, 
   Folder, 
   AlertTriangle, 
   Calendar, 
-  BarChart3, 
-  Settings, 
-  Bell,
-  User,
-  Clock,
-  Target,
-  TrendingUp,
-  Filter,
-  Volume2,
   ChevronUp,
   RefreshCw,
-  ChevronDown,
-  Hash,
-  FileText,
-  Leaf,
-  Type,
-  Search,
-  Link,
-  Clipboard,
-  Code,
-  LogOut
+  ChevronDown
 } from 'lucide-react'
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState('dashboard')
   const [isLoaded, setIsLoaded] = useState(false)
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
 
   useEffect(() => {
     // Trigger animations after component mounts
     const timer = setTimeout(() => setIsLoaded(true), 100)
     return () => clearTimeout(timer)
   }, [])
-
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
 
   // Animation variants
   const containerVariants = {
@@ -228,87 +200,15 @@ const Dashboard = () => {
     }
   ]
 
-  const bottomBarIcons = [
-    { icon: Hash, label: 'Hash' },
-    { icon: FileText, label: 'Document' },
-    { icon: Leaf, label: 'Leaf' },
-    { icon: Type, label: 'Text' },
-    { icon: Search, label: 'Search' },
-    { icon: Link, label: 'Link' },
-    { icon: Clipboard, label: 'Clipboard' },
-    { icon: Code, label: 'Code' }
-  ]
+
 
   return (
     <motion.div 
-      className="min-h-screen bg-gray-900"
+      className="h-full bg-gray-900 p-6"
       variants={containerVariants}
       initial="hidden"
       animate={isLoaded ? "visible" : "hidden"}
     >
-      {/* Header */}
-      <motion.header 
-        className="bg-gray-800 border-b border-gray-700"
-        variants={itemVariants}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Target className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-gray-100">Synq</h1>
-              </div>
-              
-              <nav className="flex space-x-1">
-                <button 
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-                >
-                  Dashboard
-                </button>
-                <button 
-                  onClick={() => setActiveTab('projects')}
-                  className={`nav-tab ${activeTab === 'projects' ? 'active' : ''}`}
-                >
-                  Projects
-                </button>
-                <button 
-                  onClick={() => setActiveTab('analytics')}
-                  className={`nav-tab ${activeTab === 'analytics' ? 'active' : ''}`}
-                >
-                  Analytics
-                </button>
-              </nav>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-gray-300">
-                <span className="text-sm">Welcome, {user?.name}</span>
-              </div>
-              <button className="btn-primary flex items-center space-x-2">
-                <Volume2 className="w-4 h-4" />
-                <span>Live Mode</span>
-              </button>
-              <button className="relative p-2 text-gray-400 hover:text-gray-200">
-                <Bell className="w-5 h-5" />
-                <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              </button>
-              <button 
-                onClick={handleLogout}
-                className="p-2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
-                title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-              <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-gray-300" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -562,31 +462,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Bottom Bar */}
-      <motion.div 
-        className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700"
-        initial={{ y: 100 }}
-        animate={{ y: 0 }}
-        transition={{ delay: 1, duration: 0.5 }}
-      >
-        <div className="max-w-7xl mx-auto px-4 py-2">
-          <div className="flex justify-center space-x-8">
-            {bottomBarIcons.map((item, index) => (
-              <motion.button 
-                key={index} 
-                className="p-2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
-                whileHover={{ scale: 1.1, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.2 + index * 0.1 }}
-              >
-                <item.icon className="w-5 h-5" />
-              </motion.button>
-            ))}
-          </div>
-        </div>
-      </motion.div>
+
     </motion.div>
   )
 }
