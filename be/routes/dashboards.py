@@ -17,6 +17,7 @@ from utils.auth import get_current_active_user
 from services.github_service import GitHubService
 from services.google_service import GoogleService
 from services.jira_service import JiraService
+from services.cache_service import cache_service
 from config.settings import settings
 
 router = APIRouter(
@@ -24,9 +25,24 @@ router = APIRouter(
 )
 
 # Helper function to fetch widget data
+def _cache_and_return(data: dict, user_id: int, service_name: str, widget_type: str, cache_params: dict, ttl: int = 600) -> dict:
+    """Helper function to cache data and return it."""
+    cache_service.set(user_id, service_name, widget_type, data, cache_params, ttl)
+    return data
+
 async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
     """Fetch live data for a widget based on its service and type."""
     try:
+        # Try to get data from cache first
+        cache_params = {"widget_type": widget.widget_type, "config": widget.config}
+        cached_data = cache_service.get(user_id, widget.service_name, widget.widget_type, cache_params)
+        
+        if cached_data:
+            print(f"Cache HIT for {widget.service_name}:{widget.widget_type}")
+            return cached_data
+        
+        print(f"Cache MISS for {widget.service_name}:{widget.widget_type} - fetching from API")
+        
         # Get the integration for this service
         integration = db.query(Integration).filter(
             Integration.user_id == user_id,
@@ -44,17 +60,20 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
             if widget.widget_type == "pull_requests":
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 prs = github_service.get_pull_requests(limit=limit)
-                return {"pull_requests": [pr.dict() for pr in prs]}
+                data = {"pull_requests": [pr.dict() for pr in prs]}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params)
             
             elif widget.widget_type == "issues":
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 issues = github_service.get_assigned_issues(limit=limit)
-                return {"issues": issues}
+                data = {"issues": issues}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params)
             
             elif widget.widget_type == "notifications":
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 notifications = github_service.get_notifications(limit=limit)
-                return {"notifications": notifications}
+                data = {"notifications": notifications}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params)
         
         elif widget.service_name == "google":
             google_service = GoogleService(integration.access_token, integration.refresh_token or "")
@@ -62,17 +81,20 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
             if widget.widget_type == "calendar":
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 events = await google_service.get_calendar_events(limit=limit)
-                return {"events": [event.dict() for event in events]}
+                data = {"events": [event.dict() for event in events]}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params)
             
             elif widget.widget_type == "tasks":
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 tasks = await google_service.get_tasks(limit=limit)
-                return {"tasks": [task.dict() for task in tasks]}
+                data = {"tasks": [task.dict() for task in tasks]}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params)
             
             elif widget.widget_type == "emails":
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 emails = await google_service.get_emails(limit=limit)
-                return {"emails": [email.dict() for email in emails]}
+                data = {"emails": [email.dict() for email in emails]}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params)
         
         elif widget.service_name == "jira":
             jira_service = JiraService(integration.access_token, settings.jira_server)
@@ -80,7 +102,8 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
             if widget.widget_type == "tickets":
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 tickets = await jira_service.get_assigned_tickets(limit=limit)
-                return {"tickets": [ticket.dict() for ticket in tickets]}
+                data = {"tickets": [ticket.dict() for ticket in tickets]}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params)
         
         elif widget.service_name == "notes":
             # Notes is an internal service, no integration record needed
@@ -91,7 +114,7 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
                 limit = widget.config.get("limit", 10) if widget.config else 10
                 pinned_only = widget.config.get("pinned_only", False) if widget.config else False
                 notes = notes_service.get_notes(limit=limit, pinned_only=pinned_only)
-                return {"notes": [{
+                data = {"notes": [{
                     "id": note.id,
                     "title": note.title,
                     "content": note.content,
@@ -99,6 +122,7 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
                     "created_at": note.created_at,
                     "updated_at": note.updated_at
                 } for note in notes]}
+                return _cache_and_return(data, user_id, widget.service_name, widget.widget_type, cache_params, ttl=300)
             
             elif widget.widget_type == "notes_search":
                 query = widget.config.get("query", "") if widget.config else ""
@@ -116,10 +140,16 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
                 else:
                     return {"search_results": []}
         
-        return {"error": f"Unsupported widget type: {widget.widget_type} for service: {widget.service_name}"}
+        data = {"error": f"Unsupported widget type: {widget.widget_type} for service: {widget.service_name}"}
+        # Cache error responses for shorter time (1 minute) to retry sooner
+        cache_service.set(user_id, widget.service_name, widget.widget_type, data, cache_params, ttl=60)
+        return data
     
     except Exception as e:
-        return {"error": f"Failed to fetch data: {str(e)}"}
+        error_data = {"error": f"Failed to fetch data: {str(e)}"}
+        # Cache error responses for shorter time (1 minute)
+        cache_service.set(user_id, widget.service_name, widget.widget_type, error_data, cache_params, ttl=60)
+        return error_data
 
 @router.get("/dashboards", response_model=List[DashboardSchema])
 async def get_user_dashboards(

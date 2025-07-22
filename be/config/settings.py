@@ -31,8 +31,13 @@ class Settings(BaseSettings):
     # Exchange/Email
     exchange_server: Optional[str] = None
 
-    # News
-    news_api_key: Optional[str] = None
+    # News API
+    news_api_key: str = "placeholder_news_api_key"
+    
+    # Redis Cache
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
     
     class Config:
         env_file = ".env"

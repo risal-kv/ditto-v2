@@ -75,11 +75,11 @@ class Widget(Base):
     # Relationships
     dashboard = relationship("Dashboard", back_populates="widgets")
 
+# Import Note model BEFORE creating tables
+from models.notes import Note
+
 # Create tables
 Base.metadata.create_all(bind=engine)
-
-# Import Note model
-from models.notes import Note
 
 # Dependency to get DB session
 def get_db():
