@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     
     # Exchange/Email
     exchange_server: Optional[str] = None
+
+    # News
+    news_api_key: Optional[str] = None
     
     class Config:
         env_file = ".env"
