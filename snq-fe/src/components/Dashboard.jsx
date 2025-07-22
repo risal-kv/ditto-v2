@@ -1321,7 +1321,36 @@ const Dashboard = () => {
 
             {/* Quick Actions */}
 
-    
+            {/* Integrations */}
+            <motion.div 
+              className="card"
+              variants={cardVariants}
+              whileHover="hover"
+            >
+              <h3 className="text-lg font-semibold text-gray-100 mb-6">Integrations</h3>
+              <div className="space-y-3">
+                {integrations.map((integration, index) => (
+                  <motion.div 
+                    key={index} 
+                    className="integration-item"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 + index * 0.1 }}
+                    whileHover={{ scale: 1.02, y: -2 }}
+                  >
+                    <span className="text-lg">{integration.icon}</span>
+                    <span className="text-sm text-gray-200">{integration.name}</span>
+                    <motion.div 
+                      className="ml-auto w-2 h-2 bg-green-400 rounded-full"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.7 + index * 0.1, type: "spring" }}
+                    ></motion.div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
         </div>
         )}
 
