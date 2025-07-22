@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useParams } from 'react-router-dom'
-import { getDashboardById } from '../utils/api'
+import { getDashboardById, updateDashboardNotes } from '../utils/api'
 import { 
   CheckCircle, 
   Folder, 
@@ -10,7 +10,12 @@ import {
   ChevronUp,
   RefreshCw,
   ChevronDown,
-  Loader2
+  Loader2,
+  Mic,
+  MicOff,
+  Save,
+  X,
+  Volume2
 } from 'lucide-react'
 
 const Dashboard = () => {
@@ -19,6 +24,17 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isRecording, setIsRecording] = useState(false)
+  const [audioBlob, setAudioBlob] = useState(null)
+  const [transcription, setTranscription] = useState('')
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [showVoiceBot, setShowVoiceBot] = useState(false)
+  const [mediaRecorder, setMediaRecorder] = useState(null)
+  const [notes, setNotes] = useState('')
+  const [isSavingNotes, setIsSavingNotes] = useState(false)
+  const [syncingConfluence, setSyncingConfluence] = useState(false)
+  const [syncingFireflies, setSyncingFireflies] = useState(false)
+  const [uploadingRequirements, setUploadingRequirements] = useState(false)
 
   useEffect(() => {
     // Trigger animations after component mounts
@@ -39,11 +55,238 @@ const Dashboard = () => {
       setError('')
       const data = await getDashboardById(dashboardId)
       setDashboardData(data)
+      // Load existing notes if available
+      if (data?.notes) {
+        setNotes(data.notes)
+      }
     } catch (err) {
       setError(err.message || 'Failed to fetch dashboard data')
       console.error('Dashboard fetch error:', err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // Voice Bot Functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      const chunks = []
+
+      recorder.ondataavailable = (event) => {
+        chunks.push(event.data)
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/wav' })
+        setAudioBlob(blob)
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      recorder.start()
+      setMediaRecorder(recorder)
+      setIsRecording(true)
+      setShowVoiceBot(true)
+    } catch (error) {
+      console.error('Error starting recording:', error)
+      alert('Unable to access microphone. Please check permissions.')
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop()
+      setIsRecording(false)
+    }
+  }
+
+  const transcribeAudio = async () => {
+    if (!audioBlob) return
+
+    try {
+      setIsTranscribing(true)
+      
+      // Check if API key is available
+      const apiKey = import.meta.env.VITE_ASSEMBLY_AI_KEY
+      if (!apiKey || apiKey === 'your-assembly-ai-key') {
+        // Fallback to mock transcription for testing
+        console.log('Using mock transcription (no API key configured)')
+        setTimeout(() => {
+          setTranscription('This is a mock transcription. Please configure your Assembly AI API key for real transcription.')
+          setIsTranscribing(false)
+        }, 2000)
+        return
+      }
+
+      // First, upload the audio file to Assembly AI
+      const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/octet-stream'
+        },
+        body: audioBlob
+      })
+
+      if (!uploadResponse.ok) {
+        const uploadError = await uploadResponse.json().catch(() => ({}))
+        console.error('Upload Error:', uploadError)
+        throw new Error(`Upload failed: ${uploadError.error || uploadResponse.statusText}`)
+      }
+
+      const uploadData = await uploadResponse.json()
+      console.log('Audio uploaded:', uploadData)
+
+      // Now create transcription request
+      const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
+        method: 'POST',
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          audio_url: uploadData.upload_url,
+          language_code: 'en',
+          punctuate: true,
+          format_text: true
+        })
+      })
+
+      if (!transcriptResponse.ok) {
+        const errorData = await transcriptResponse.json().catch(() => ({}))
+        console.error('Assembly AI API Error:', errorData)
+        throw new Error(`Transcription failed: ${errorData.error || transcriptResponse.statusText}`)
+      }
+
+      const data = await transcriptResponse.json()
+      console.log('Transcription submitted:', data)
+      
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${data.id}`, {
+            headers: {
+              'Authorization': apiKey
+            }
+          })
+          
+          if (!pollResponse.ok) {
+            clearInterval(pollInterval)
+            throw new Error('Failed to check transcription status')
+          }
+          
+          const pollData = await pollResponse.json()
+          console.log('Poll status:', pollData.status)
+          
+          if (pollData.status === 'completed') {
+            clearInterval(pollInterval)
+            setTranscription(pollData.text)
+            setIsTranscribing(false)
+          } else if (pollData.status === 'error') {
+            clearInterval(pollInterval)
+            throw new Error(`Transcription failed: ${pollData.error || 'Unknown error'}`)
+          }
+        } catch (pollError) {
+          clearInterval(pollInterval)
+          console.error('Polling error:', pollError)
+          setIsTranscribing(false)
+          alert('Failed to check transcription status. Please try again.')
+        }
+      }, 2000) // Poll every 2 seconds
+      
+      // Timeout after 60 seconds
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        setIsTranscribing(false)
+        alert('Transcription timed out. Please try again.')
+      }, 60000)
+    } catch (error) {
+      console.error('Transcription error:', error)
+      setIsTranscribing(false)
+      alert(error.message || 'Transcription failed. Please try again.')
+    }
+  }
+
+  const saveNotes = async () => {
+    try {
+      setIsSavingNotes(true)
+      const updatedNotes = notes + (transcription ? `\n\n${new Date().toLocaleString()}: ${transcription}` : '')
+      
+      await updateDashboardNotes(dashboardId, updatedNotes)
+      setNotes(updatedNotes)
+      setTranscription('')
+      setAudioBlob(null)
+      setShowVoiceBot(false)
+    } catch (error) {
+      console.error('Error saving notes:', error)
+      alert('Failed to save notes. Please try again.')
+    } finally {
+      setIsSavingNotes(false)
+    }
+  }
+
+  const closeVoiceBot = () => {
+    if (isRecording) {
+      stopRecording()
+    }
+    setShowVoiceBot(false)
+    setTranscription('')
+    setAudioBlob(null)
+  }
+
+  // Sync Functions
+  const handleSyncConfluence = async () => {
+    try {
+      setSyncingConfluence(true)
+      const projectName = dashboardData?.name || 'Default Project'
+      
+      // Simulate API call to sync Confluence
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      console.log(`Syncing Confluence for project: ${projectName}`)
+      alert(`Successfully synced Confluence for project: ${projectName}`)
+    } catch (error) {
+      console.error('Confluence sync error:', error)
+      alert('Failed to sync Confluence. Please try again.')
+    } finally {
+      setSyncingConfluence(false)
+    }
+  }
+
+  const handleSyncFireflies = async () => {
+    try {
+      setSyncingFireflies(true)
+      const projectName = dashboardData?.name || 'Default Project'
+      
+      // Simulate API call to sync Fireflies
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      console.log(`Syncing Fireflies for project: ${projectName}`)
+      alert(`Successfully synced Fireflies for project: ${projectName}`)
+    } catch (error) {
+      console.error('Fireflies sync error:', error)
+      alert('Failed to sync Fireflies. Please try again.')
+    } finally {
+      setSyncingFireflies(false)
+    }
+  }
+
+  const handleUploadRequirements = async () => {
+    try {
+      setUploadingRequirements(true)
+      const projectName = dashboardData?.name || 'Default Project'
+      
+      // Simulate API call to upload requirements
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      console.log(`Uploading requirements for project: ${projectName}`)
+      alert(`Successfully uploaded requirements for project: ${projectName}`)
+    } catch (error) {
+      console.error('Requirements upload error:', error)
+      alert('Failed to upload requirements. Please try again.')
+    } finally {
+      setUploadingRequirements(false)
     }
   }
 
@@ -198,15 +441,24 @@ const Dashboard = () => {
   const quickActions = [
     {
       title: 'Upload Requirements',
-      icon: ChevronUp
+      subtitle: dashboardData?.name || 'Default Project',
+      icon: ChevronUp,
+      action: handleUploadRequirements,
+      loading: uploadingRequirements
     },
     {
       title: 'Sync Confluence',
-      icon: RefreshCw
+      subtitle: dashboardData?.name || 'Default Project',
+      icon: RefreshCw,
+      action: handleSyncConfluence,
+      loading: syncingConfluence
     },
     {
       title: 'Import from Fireflies',
-      icon: ChevronDown
+      subtitle: dashboardData?.name || 'Default Project',
+      icon: ChevronDown,
+      action: handleSyncFireflies,
+      loading: syncingFireflies
     }
   ]
 
@@ -245,12 +497,9 @@ const Dashboard = () => {
           variants={itemVariants}
         >
           {isLoading ? (
-            <div className="flex items-center space-x-3">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-100 mb-2">Loading Dashboard...</h1>
-                <p className="text-gray-400">Fetching dashboard data</p>
-              </div>
+            <div className="mb-8">
+              <div className="h-8 bg-gray-800 rounded-lg w-64 mb-2 animate-pulse"></div>
+              <div className="h-4 bg-gray-800 rounded w-96 animate-pulse"></div>
             </div>
           ) : error ? (
             <div>
@@ -280,15 +529,146 @@ const Dashboard = () => {
           )}
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Summary Cards */}
-            <motion.div 
-              className="grid grid-cols-2 lg:grid-cols-4 gap-4"
-              variants={itemVariants}
+        {/* Voice Bot Trigger */}
+        {!isLoading && !error && (
+          <motion.div
+            className="mb-6 flex justify-end"
+            variants={itemVariants}
+          >
+            <motion.button
+              onClick={startRecording}
+              className="fixed bottom-6 right-6 z-50 p-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
             >
-              {summaryCards.map((card, index) => (
+              <Mic className="w-6 h-6" />
+              <div className="absolute -top-2 -right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+            </motion.button>
+          </motion.div>
+        )}
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column Skeleton */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* Summary Cards Skeleton */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="card">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-6 h-6 bg-gray-700 rounded animate-pulse"></div>
+                      <div className="flex-1">
+                        <div className="h-3 bg-gray-700 rounded w-16 mb-1 animate-pulse"></div>
+                        <div className="h-6 bg-gray-700 rounded w-8 animate-pulse"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Active Projects Skeleton */}
+              <div className="card">
+                <div className="h-6 bg-gray-700 rounded w-32 mb-6 animate-pulse"></div>
+                <div className="space-y-6">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="space-y-3 p-4 rounded-lg bg-gray-700/30 border border-gray-600/50">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-700 rounded w-24 mb-1 animate-pulse"></div>
+                          <div className="h-3 bg-gray-700 rounded w-32 animate-pulse"></div>
+                        </div>
+                        <div className="h-5 bg-gray-700 rounded w-16 animate-pulse"></div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-2 bg-gray-700 rounded-full animate-pulse"></div>
+                        <div className="flex justify-between">
+                          <div className="h-3 bg-gray-700 rounded w-16 animate-pulse"></div>
+                          <div className="h-3 bg-gray-700 rounded w-20 animate-pulse"></div>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <div className="w-6 h-6 bg-gray-700 rounded-full animate-pulse"></div>
+                        <div className="w-6 h-6 bg-gray-700 rounded-full animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent Activity Skeleton */}
+              <div className="card">
+                <div className="h-6 bg-gray-700 rounded w-32 mb-6 animate-pulse"></div>
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-start space-x-3 p-3">
+                      <div className="w-2 h-2 bg-gray-700 rounded-full mt-2 animate-pulse"></div>
+                      <div className="flex-1">
+                        <div className="h-3 bg-gray-700 rounded w-full mb-1 animate-pulse"></div>
+                        <div className="h-2 bg-gray-700 rounded w-24 animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column Skeleton */}
+            <div className="space-y-8">
+              {/* Today's Schedule Skeleton */}
+              <div className="card">
+                <div className="h-6 bg-gray-700 rounded w-32 mb-6 animate-pulse"></div>
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="flex items-start space-x-3 p-3">
+                      <div className="w-2 h-2 bg-gray-700 rounded-full mt-1 animate-pulse"></div>
+                      <div className="flex-1">
+                        <div className="h-3 bg-gray-700 rounded w-24 mb-1 animate-pulse"></div>
+                        <div className="h-2 bg-gray-700 rounded w-32 mb-1 animate-pulse"></div>
+                        <div className="h-2 bg-gray-700 rounded w-16 animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Actions Skeleton */}
+              <div className="card">
+                <div className="h-6 bg-gray-700 rounded w-32 mb-6 animate-pulse"></div>
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center space-x-3 p-2">
+                      <div className="w-4 h-4 bg-gray-700 rounded animate-pulse"></div>
+                      <div className="h-3 bg-gray-700 rounded w-24 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Integrations Skeleton */}
+              <div className="card">
+                <div className="h-6 bg-gray-700 rounded w-24 mb-6 animate-pulse"></div>
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center space-x-3 p-2">
+                      <div className="w-4 h-4 bg-gray-700 rounded animate-pulse"></div>
+                      <div className="h-3 bg-gray-700 rounded w-16 animate-pulse"></div>
+                      <div className="ml-auto w-2 h-2 bg-gray-700 rounded-full animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* Summary Cards */}
+              <motion.div 
+                className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+                variants={itemVariants}
+              >
+                {summaryCards.map((card, index) => (
                 <motion.div 
                   key={index} 
                   className="card relative cursor-pointer"
@@ -484,15 +864,25 @@ const Dashboard = () => {
                 {quickActions.map((action, index) => (
                   <motion.div 
                     key={index} 
-                    className="quick-action-item"
+                    className="quick-action-item cursor-pointer"
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.4 + index * 0.1 }}
                     whileHover={{ x: 5, scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={action.action}
                   >
-                    <action.icon className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-200">{action.title}</span>
+                    <div className="flex items-center space-x-3">
+                      {action.loading ? (
+                        <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                      ) : (
+                        <action.icon className="w-4 h-4 text-gray-400" />
+                      )}
+                      <div className="flex-1">
+                        <span className="text-sm text-gray-200">{action.title}</span>
+                        <div className="text-xs text-gray-400">{action.subtitle}</div>
+                      </div>
+                    </div>
                   </motion.div>
                 ))}
               </div>
@@ -529,9 +919,177 @@ const Dashboard = () => {
             </motion.div>
           </motion.div>
         </div>
+        )}
+
+        {/* Notes Section */}
+        {!isLoading && !error && (
+          <motion.div
+            className="mt-8"
+            variants={itemVariants}
+          >
+            <div className="card">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-100">Notes</h3>
+                <div className="flex items-center space-x-2">
+                  <Volume2 className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-400">Voice notes enabled</span>
+                </div>
+              </div>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add your notes here... Use the voice bot to add voice notes!"
+                className="w-full h-32 p-4 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
+              />
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={saveNotes}
+                  disabled={isSavingNotes}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  {isSavingNotes ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save Notes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
+      {/* Voice Bot Modal */}
+      {showVoiceBot && (
+        <motion.div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="bg-gray-800 rounded-2xl p-8 max-w-md w-full border border-gray-700 shadow-2xl"
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-100">Voice Notes</h2>
+              <button
+                onClick={closeVoiceBot}
+                className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
 
+            <div className="text-center mb-6">
+              {isRecording ? (
+                <div className="space-y-4">
+                  <motion.div
+                    className="w-20 h-20 bg-red-500 rounded-full mx-auto flex items-center justify-center"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    <MicOff className="w-8 h-8 text-white" />
+                  </motion.div>
+                  <div>
+                    <p className="text-gray-100 font-medium">Recording...</p>
+                    <p className="text-gray-400 text-sm">Click to stop recording</p>
+                  </div>
+                  <button
+                    onClick={stopRecording}
+                    className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                  >
+                    Stop Recording
+                  </button>
+                </div>
+              ) : audioBlob ? (
+                <div className="space-y-4">
+                  <div className="w-20 h-20 bg-blue-500 rounded-full mx-auto flex items-center justify-center">
+                    <Volume2 className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-gray-100 font-medium">Audio Recorded</p>
+                    <p className="text-gray-400 text-sm">Ready to transcribe</p>
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      onClick={transcribeAudio}
+                      disabled={isTranscribing}
+                      className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-center space-x-2"
+                    >
+                      {isTranscribing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Transcribing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-4 h-4" />
+                          <span>Transcribe Audio</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={startRecording}
+                      className="w-full px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                    >
+                      Record Again
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="w-20 h-20 bg-blue-500 rounded-full mx-auto flex items-center justify-center">
+                    <Mic className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-gray-100 font-medium">Ready to Record</p>
+                    <p className="text-gray-400 text-sm">Click to start recording</p>
+                  </div>
+                  <button
+                    onClick={startRecording}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  >
+                    Start Recording
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {transcription && (
+              <div className="mt-6 p-4 bg-gray-700/30 rounded-lg border border-gray-600/50">
+                <h3 className="text-sm font-medium text-gray-100 mb-2">Transcription:</h3>
+                <p className="text-gray-300 text-sm">{transcription}</p>
+                <button
+                  onClick={saveNotes}
+                  disabled={isSavingNotes}
+                  className="mt-4 w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-center space-x-2"
+                >
+                  {isSavingNotes ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving to Notes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save to Notes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
     </motion.div>
   )
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { getIntegrations } from '../utils/api'
+import { getIntegrations, getDashboardById } from '../utils/api'
 import { 
   Link, 
   Settings, 
@@ -12,7 +12,11 @@ import {
   CheckCircle, 
   ExternalLink,
   Loader2,
-  Search
+  Search,
+  Ticket,
+  AlertCircle,
+  Clock,
+  User
 } from 'lucide-react'
 
 const Integrations = () => {
@@ -23,11 +27,29 @@ const Integrations = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [connectingIntegration, setConnectingIntegration] = useState(null)
   const [connectedIntegrations, setConnectedIntegrations] = useState([])
+  const [widgets, setWidgets] = useState([])
+  const [widgetsLoading, setWidgetsLoading] = useState(false)
 
   useEffect(() => {
     fetchIntegrations()
     loadConnectedIntegrations()
+    fetchWidgetsData()
   }, [])
+
+  const fetchWidgetsData = async () => {
+    try {
+      setWidgetsLoading(true)
+      // Fetch the first dashboard to get widgets data
+      const dashboardData = await getDashboardById(1)
+      if (dashboardData?.widgets) {
+        setWidgets(dashboardData.widgets)
+      }
+    } catch (err) {
+      console.error('Failed to fetch widgets data:', err)
+    } finally {
+      setWidgetsLoading(false)
+    }
+  }
 
   const loadConnectedIntegrations = () => {
     try {
@@ -90,6 +112,37 @@ const Integrations = () => {
       'default': Link
     }
     return iconMap[iconName] || iconMap.default
+  }
+
+  // Get widget icon based on widget type and service
+  const getWidgetIcon = (widgetType, serviceName) => {
+    if (widgetType === 'tickets') return Ticket
+    if (serviceName === 'jira') return Settings
+    if (serviceName === 'github') return FileText
+    if (serviceName === 'slack') return Users
+    return Settings
+  }
+
+  // Get status color for tickets
+  const getStatusColor = (status) => {
+    const statusColors = {
+      'To Do': 'text-gray-400',
+      'In Progress': 'text-blue-400',
+      'Done': 'text-green-400',
+      'Blocked': 'text-red-400',
+      'Review': 'text-yellow-400'
+    }
+    return statusColors[status] || 'text-gray-400'
+  }
+
+  // Get priority color
+  const getPriorityColor = (priority) => {
+    const priorityColors = {
+      'High': 'text-red-400',
+      'Medium': 'text-yellow-400',
+      'Low': 'text-green-400'
+    }
+    return priorityColors[priority] || 'text-gray-400'
   }
 
   const handleIntegrationClick = async (integration) => {
@@ -204,10 +257,61 @@ const Integrations = () => {
 
   if (isLoading) {
     return (
-      <div className="h-full bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-400">Loading integrations...</p>
+      <div className="h-full bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className="h-8 bg-gray-800 rounded-lg w-48 mb-2 animate-pulse"></div>
+            <div className="h-4 bg-gray-800 rounded w-96 animate-pulse"></div>
+          </div>
+
+          {/* Search Bar Skeleton */}
+          <div className="mb-8">
+            <div className="relative max-w-md">
+              <div className="h-12 bg-gray-800 rounded-xl animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Stats Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gray-700 rounded-lg w-10 h-10 animate-pulse"></div>
+                  <div className="flex-1">
+                    <div className="h-3 bg-gray-700 rounded w-20 mb-2 animate-pulse"></div>
+                    <div className="h-6 bg-gray-700 rounded w-12 animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Integrations Grid Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-3 bg-gray-700 rounded-xl w-12 h-12 animate-pulse"></div>
+                    <div className="h-5 bg-gray-700 rounded w-24 animate-pulse"></div>
+                  </div>
+                  <div className="w-4 h-4 bg-gray-700 rounded animate-pulse"></div>
+                </div>
+                
+                <div className="space-y-2 mb-6">
+                  <div className="h-3 bg-gray-700 rounded w-full animate-pulse"></div>
+                  <div className="h-3 bg-gray-700 rounded w-3/4 animate-pulse"></div>
+                  <div className="h-3 bg-gray-700 rounded w-1/2 animate-pulse"></div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="h-3 bg-gray-700 rounded w-16 animate-pulse"></div>
+                  <div className="h-8 bg-gray-700 rounded-lg w-20 animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -507,6 +611,133 @@ const Integrations = () => {
             </div>
           </motion.div>
         )}
+
+        {/* Active Widgets Section */}
+        <motion.div
+          className="mt-12"
+          variants={itemVariants}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-100">Active Widgets</h2>
+            {widgetsLoading && (
+              <div className="flex items-center space-x-2 text-blue-400">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Loading widgets...</span>
+              </div>
+            )}
+          </div>
+          
+          {widgets.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {widgets.map((widget, index) => {
+                const WidgetIcon = getWidgetIcon(widget.widget_type, widget.service_name)
+                const tickets = widget.data?.tickets || []
+                
+                return (
+                  <motion.div
+                    key={widget.id}
+                    className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500/30 transition-all duration-300"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-3 bg-blue-600/20 rounded-xl">
+                          <WidgetIcon className="w-6 h-6 text-blue-400" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-100 capitalize">
+                            {widget.widget_type} Widget
+                          </h3>
+                          <p className="text-sm text-gray-400 capitalize">
+                            {widget.service_name} • {tickets.length} items
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          widget.is_active 
+                            ? 'bg-green-600/20 text-green-400' 
+                            : 'bg-gray-600/20 text-gray-400'
+                        }`}>
+                          {widget.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+
+                                         {tickets.length > 0 ? (
+                       <div className="space-y-3">
+                         {tickets.slice(0, 3).map((ticket) => (
+                          <div
+                            key={ticket.id}
+                            className="p-3 bg-gray-700/30 rounded-lg border border-gray-600/50 hover:bg-gray-700/50 transition-colors duration-200"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-blue-400">
+                                  {ticket.key}
+                                </span>
+                                <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(ticket.status)}`}>
+                                  {ticket.status}
+                                </span>
+                              </div>
+                              <span className={`text-xs ${getPriorityColor(ticket.priority)}`}>
+                                {ticket.priority}
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-medium text-gray-100 mb-2">
+                              {ticket.title}
+                            </h4>
+                            <div className="flex items-center justify-between text-xs text-gray-400">
+                              <div className="flex items-center space-x-1">
+                                <User className="w-3 h-3" />
+                                <span>{ticket.assignee}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <Clock className="w-3 h-3" />
+                                <span>{new Date(ticket.updated_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {tickets.length > 3 && (
+                          <div className="text-center">
+                            <span className="text-sm text-gray-400">
+                              +{tickets.length - 3} more tickets
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <Ticket className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                        <p className="text-gray-400 text-sm">No tickets available</p>
+                      </div>
+                    )}
+
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>Position: ({widget.position_x}, {widget.position_y})</span>
+                        <span>Size: {widget.width}×{widget.height}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="p-4 bg-gray-800 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <Settings className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-100 mb-2">No Active Widgets</h3>
+              <p className="text-gray-400">
+                Connect integrations to see widgets and their data here.
+              </p>
+            </div>
+          )}
+        </motion.div>
       </div>
     </motion.div>
   )

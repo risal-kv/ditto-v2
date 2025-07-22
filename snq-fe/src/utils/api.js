@@ -109,4 +109,11 @@ export const getIntegrations = async () => {
 
 export const getDashboardById = async (dashboardId) => {
   return makeAuthenticatedRequest(`/dashboards/${dashboardId}`)
+}
+
+export const updateDashboardNotes = async (dashboardId, notes) => {
+  return makeAuthenticatedRequest(`/dashboards/${dashboardId}/notes`, {
+    method: 'PUT',
+    body: JSON.stringify({ notes })
+  })
 } 
