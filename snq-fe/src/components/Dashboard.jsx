@@ -35,6 +35,7 @@ const Dashboard = () => {
   const [syncingConfluence, setSyncingConfluence] = useState(false)
   const [syncingFireflies, setSyncingFireflies] = useState(false)
   const [uploadingRequirements, setUploadingRequirements] = useState(false)
+  const [noteTitle, setNoteTitle] = useState('')
 
   useEffect(() => {
     // Trigger animations after component mounts
@@ -210,17 +211,50 @@ const Dashboard = () => {
 
   const saveNotes = async () => {
     try {
+      // Validate title is provided
+      if (!noteTitle.trim()) {
+        alert('Please enter a title for your note.')
+        return
+      }
+
       setIsSavingNotes(true)
-      const updatedNotes = notes + (transcription ? `\n\n${new Date().toLocaleString()}: ${transcription}` : '')
       
-      await updateDashboardNotes(dashboardId, updatedNotes)
-      setNotes(updatedNotes)
+      // Prepare the content with transcription if available
+      const content = transcription ? `${transcription}\n\n${notes}` : notes
+      
+      // Call the notes API
+      const response = await fetch('https://evident-upward-mudfish.ngrok-free.app/notes/', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('synq_token')}`
+        },
+        body: JSON.stringify({
+          title: noteTitle.trim(),
+          content: content.trim(),
+          is_pinned: false
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+
+      const savedNote = await response.json()
+      console.log('Note saved successfully:', savedNote)
+      
+      // Reset form
+      setNoteTitle('')
       setTranscription('')
       setAudioBlob(null)
       setShowVoiceBot(false)
+      
+      alert('Note saved successfully!')
     } catch (error) {
       console.error('Error saving notes:', error)
-      alert('Failed to save notes. Please try again.')
+      alert(`Failed to save notes: ${error.message}`)
     } finally {
       setIsSavingNotes(false)
     }
@@ -233,6 +267,7 @@ const Dashboard = () => {
     setShowVoiceBot(false)
     setTranscription('')
     setAudioBlob(null)
+    setNoteTitle('')
   }
 
   // Sync Functions
@@ -1066,12 +1101,37 @@ const Dashboard = () => {
 
             {transcription && (
               <div className="mt-6 p-4 bg-gray-700/30 rounded-lg border border-gray-600/50">
-                <h3 className="text-sm font-medium text-gray-100 mb-2">Transcription:</h3>
-                <p className="text-gray-300 text-sm">{transcription}</p>
+                <h3 className="text-sm font-medium text-gray-100 mb-4">Save Note</h3>
+                
+                {/* Title Input */}
+                <div className="mb-4">
+                  <label htmlFor="noteTitle" className="block text-sm font-medium text-gray-300 mb-2">
+                    Note Title *
+                  </label>
+                  <input
+                    id="noteTitle"
+                    type="text"
+                    value={noteTitle}
+                    onChange={(e) => setNoteTitle(e.target.value)}
+                    placeholder="Enter a title for your note..."
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    required
+                  />
+                </div>
+
+                {/* Transcription Preview */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-300 mb-2">Transcription:</h4>
+                  <p className="text-gray-300 text-sm bg-gray-800 p-3 rounded-lg border border-gray-600/50">
+                    {transcription}
+                  </p>
+                </div>
+
+                {/* Save Button */}
                 <button
                   onClick={saveNotes}
-                  disabled={isSavingNotes}
-                  className="mt-4 w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-center space-x-2"
+                  disabled={isSavingNotes || !noteTitle.trim()}
+                  className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center space-x-2"
                 >
                   {isSavingNotes ? (
                     <>
