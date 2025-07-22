@@ -116,6 +116,9 @@ Thumbs.db
 # Node modules (if any frontend exists)
 node_modules/
 
+# Static files
+/static/
+
 # Coverage reports
 coverage/
 
@@ -124,6 +127,9 @@ coverage/
 
 # Other
 *.sqlite3
+
+# Ignore HTML static files
+*.html
 
 # IDE
 .idea/
