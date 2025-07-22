@@ -7,7 +7,6 @@ from config.settings import settings
 
 class GitHubService:
     def __init__(self, access_token: str = None):
-        print(settings.github_client_id)
         self.access_token = access_token
         if access_token:
             self.github = Github(access_token)
@@ -15,7 +14,7 @@ class GitHubService:
             self.github = None
         self.base_url = "https://api.github.com"
     
-    async def get_oauth_url(self, state: str = None) -> str:
+    def get_oauth_url(self, state: str = None) -> str:
         """Generate GitHub OAuth URL."""
         if not settings.github_client_id or settings.github_client_id.startswith('placeholder'):
             raise ValueError("GitHub OAuth credentials not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in your .env file.")
@@ -24,7 +23,7 @@ class GitHubService:
             f"https://github.com/login/oauth/authorize"
             f"?client_id={settings.github_client_id}"
             f"&redirect_uri={settings.github_redirect_uri}"
-            f"&scope=repo,user:email,read:org"
+            f"&scope=repo,user:email,read:org,notifications"
         )
         if state:
             url += f"&state={state}"
@@ -45,7 +44,7 @@ class GitHubService:
             )
             return response.json()
     
-    async def get_user_info(self) -> dict:
+    def get_user_info(self) -> dict:
         """Get authenticated user info."""
         if not self.github:
             raise ValueError("GitHub client not initialized. Access token required.")
@@ -58,7 +57,7 @@ class GitHubService:
             "avatar_url": user.avatar_url
         }
     
-    async def get_pull_requests(self, limit: int = 10) -> List[PullRequest]:
+    def get_pull_requests(self, limit: int = 10) -> List[PullRequest]:
         """Get user's pull requests."""
         if not self.github:
             raise ValueError("GitHub client not initialized. Access token required.")
@@ -92,7 +91,7 @@ class GitHubService:
         print(f"Total PRs found: {len(prs)}")
         return prs[:limit]
     
-    async def get_assigned_issues(self, limit: int = 10) -> List[dict]:
+    def get_assigned_issues(self, limit: int = 10) -> List[dict]:
         """Get issues assigned to the user."""
         if not self.github:
             raise ValueError("GitHub client not initialized. Access token required.")
@@ -100,7 +99,7 @@ class GitHubService:
         issues = []
         
         try:
-            for issue in self.github.search_issues(f"assignee:{user.login} is:open", sort="updated")[:limit]:
+            for issue in self.github.search_issues(f"assignee:{user.login} is:issue is:open", sort="updated")[:limit]:
                 issues.append({
                     "id": issue.id,
                     "title": issue.title,
@@ -116,7 +115,7 @@ class GitHubService:
         
         return issues
     
-    async def get_notifications(self, limit: int = 10) -> List[dict]:
+    def get_notifications(self, limit: int = 10) -> List[dict]:
         """Get user notifications."""
         if not self.github:
             raise ValueError("GitHub client not initialized. Access token required.")

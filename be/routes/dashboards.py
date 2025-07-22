@@ -43,17 +43,17 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
             
             if widget.widget_type == "pull_requests":
                 limit = widget.config.get("limit", 10) if widget.config else 10
-                prs = await github_service.get_pull_requests(limit=limit)
+                prs = github_service.get_pull_requests(limit=limit)
                 return {"pull_requests": [pr.dict() for pr in prs]}
             
             elif widget.widget_type == "issues":
                 limit = widget.config.get("limit", 10) if widget.config else 10
-                issues = await github_service.get_assigned_issues(limit=limit)
+                issues = github_service.get_assigned_issues(limit=limit)
                 return {"issues": issues}
             
             elif widget.widget_type == "notifications":
                 limit = widget.config.get("limit", 10) if widget.config else 10
-                notifications = await github_service.get_notifications(limit=limit)
+                notifications = github_service.get_notifications(limit=limit)
                 return {"notifications": notifications}
         
         elif widget.service_name == "google":
@@ -82,6 +82,40 @@ async def _fetch_widget_data(widget: Widget, user_id: int, db: Session) -> dict:
                 tickets = await jira_service.get_assigned_tickets(limit=limit)
                 return {"tickets": [ticket.dict() for ticket in tickets]}
         
+        elif widget.service_name == "notes":
+            # Notes is an internal service, no integration record needed
+            from services.notes_service import NotesService
+            notes_service = NotesService(db, user_id)
+            
+            if widget.widget_type == "notes_list":
+                limit = widget.config.get("limit", 10) if widget.config else 10
+                pinned_only = widget.config.get("pinned_only", False) if widget.config else False
+                notes = notes_service.get_notes(limit=limit, pinned_only=pinned_only)
+                return {"notes": [{
+                    "id": note.id,
+                    "title": note.title,
+                    "content": note.content,
+                    "is_pinned": note.is_pinned,
+                    "created_at": note.created_at,
+                    "updated_at": note.updated_at
+                } for note in notes]}
+            
+            elif widget.widget_type == "notes_search":
+                query = widget.config.get("query", "") if widget.config else ""
+                limit = widget.config.get("limit", 10) if widget.config else 10
+                if query:
+                    notes = notes_service.search_notes(query, limit=limit)
+                    return {"search_results": [{
+                        "id": note.id,
+                        "title": note.title,
+                        "content": note.content,
+                        "is_pinned": note.is_pinned,
+                        "created_at": note.created_at,
+                        "updated_at": note.updated_at
+                    } for note in notes]}
+                else:
+                    return {"search_results": []}
+        
         return {"error": f"Unsupported widget type: {widget.widget_type} for service: {widget.service_name}"}
     
     except Exception as e:
@@ -103,16 +137,60 @@ async def create_dashboard(
     db: Session = Depends(get_db)
 ):
     """Create a new dashboard."""
+    import json
+    
+    # Serialize layout_config to JSON string if it's a dict
+    layout_config_json = None
+    if dashboard.layout_config:
+        if isinstance(dashboard.layout_config, dict):
+            layout_config_json = json.dumps(dashboard.layout_config)
+        else:
+            layout_config_json = dashboard.layout_config
+    
+    # Create the dashboard
     db_dashboard = Dashboard(
         user_id=current_user.id,
         name=dashboard.name,
         description=dashboard.description,
         is_default=dashboard.is_default,
-        layout_config=dashboard.layout_config
+        layout_config=layout_config_json
     )
     db.add(db_dashboard)
     db.commit()
     db.refresh(db_dashboard)
+    
+    # Auto-add Notes integration if it doesn't exist
+    notes_integration = db.query(Integration).filter(
+        Integration.user_id == current_user.id,
+        Integration.service_name == "notes"
+    ).first()
+    
+    if not notes_integration:
+        notes_integration = Integration(
+            user_id=current_user.id,
+            service_name="notes",
+            access_token="internal",  # Placeholder for internal service
+            is_active=True,
+            metadata=json.dumps({"type": "internal", "service": "notes"})
+        )
+        db.add(notes_integration)
+        db.commit()
+        db.refresh(notes_integration)
+    
+    # Add default Notes widget to the new dashboard
+    default_notes_widget = Widget(
+        dashboard_id=db_dashboard.id,
+        widget_type="notes_list",
+        service_name="notes",
+        position_x=0,
+        position_y=0,
+        width=4,
+        height=3,
+        config=json.dumps({"limit": 10, "pinned_only": False})
+    )
+    db.add(default_notes_widget)
+    db.commit()
+    
     return db_dashboard
 
 @router.get("/dashboards/{dashboard_id}", response_model=DashboardWithWidgetsAndData)

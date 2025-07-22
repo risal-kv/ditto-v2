@@ -26,22 +26,29 @@ async def get_available_integrations():
             "id": "github",
             "name": "GitHub",
             "description": "Connect to GitHub to track your repositories, issues, and pull requests.",
-            "icon": "github",
+            "icon": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
             "connect_url": "/integrations/github/connect"
         },
         {
             "id": "google",
             "name": "Google",
             "description": "Connect to Google services for calendar, tasks, and emails.",
-            "icon": "google",
+            "icon": "https://developers.google.com/identity/images/g-logo.png",
             "connect_url": "/integrations/google/connect"
         },
         {
             "id": "jira",
             "name": "Jira",
             "description": "Connect to Jira for project management and issue tracking.",
-            "icon": "jira",
+            "icon": "https://cdn-icons-png.flaticon.com/512/5968/5968875.png",
             "connect_url": "/integrations/jira/connect"
+        },
+        {
+            "id": "notes",
+            "name": "Notes",
+            "description": "Internal note-taking system. Create, manage, and organize your personal notes.",
+            "icon": "https://cdn-icons-png.flaticon.com/512/3959/3959542.png",
+            "connect_url": "/integrations/notes/connect"
         }
     ]
     return {"integrations": integrations}
@@ -64,7 +71,7 @@ async def github_connect(
 ):
     """Get GitHub OAuth URL."""
     github_service = GitHubService("")
-    oauth_url = github_service.get_oauth_url()
+    oauth_url = github_service.get_oauth_url(state=str(current_user.id))
     return {"url": oauth_url}
 
 @router.get("/integrations/github/callback")
@@ -90,14 +97,16 @@ async def github_callback(
     
     # Exchange code for access token
     github_service = GitHubService("")
-    access_token = await github_service.exchange_code_for_token(code)
+    token_data = await github_service.exchange_code_for_token(code)
     
-    if not access_token:
+    if not token_data or "access_token" not in token_data:
         raise HTTPException(status_code=400, detail="Failed to get access token")
+    
+    access_token = token_data["access_token"]
     
     # Get user info to verify connection
     github_service = GitHubService(access_token)
-    user_info = await github_service.get_user_info()
+    user_info = github_service.get_user_info()
     
     if not user_info:
         raise HTTPException(status_code=400, detail="Failed to get user info")
@@ -214,7 +223,7 @@ async def jira_connect(
     try:
         jira_service = JiraService("", settings.jira_server)
         oauth_url = await jira_service.get_oauth_url(state=str(current_user.id))
-        return {"oauth_url": oauth_url}
+        return {"url": oauth_url}
     except Exception as e:
         print(f"Error in jira_connect: {e}")
         raise HTTPException(status_code=500, detail=f"OAuth setup failed: {str(e)}")
@@ -264,3 +273,37 @@ async def jira_callback(
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Integration failed: {str(e)}")
+
+# Notes Integration (Internal)
+@router.get("/integrations/notes/connect")
+async def notes_connect(
+    current_user: DBUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Connect to Notes (internal service - no OAuth needed)."""
+    try:
+        # Check if Notes integration already exists
+        integration = db.query(Integration).filter(
+            Integration.user_id == current_user.id,
+            Integration.service_name == "notes"
+        ).first()
+        
+        if integration:
+            integration.is_active = True
+        else:
+            # Create Notes integration (no access token needed for internal service)
+            integration = Integration(
+                user_id=current_user.id,
+                service_name="notes",
+                access_token="internal",  # Placeholder for internal service
+                is_active=True,
+                metadata=json.dumps({"type": "internal", "service": "notes"})
+            )
+            db.add(integration)
+        
+        db.commit()
+        return {"success": True, "integration": "notes", "message": "Notes integration activated successfully"}
+        
+    except Exception as e:
+        print(f"Error in notes_connect: {e}")
+        raise HTTPException(status_code=500, detail=f"Notes integration failed: {str(e)}")

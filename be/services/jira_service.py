@@ -11,15 +11,12 @@ class JiraService:
         self.server = server or settings.jira_server
         self.jira = None
         
-        # Initialize JIRA client with OAuth token
-        if self.server and access_token:
-            try:
-                self.jira = JIRA(
-                    server=self.server,
-                    token_auth=access_token
-                )
-            except Exception as e:
-                print(f"Error initializing JIRA client: {e}")
+        if access_token:
+            self.headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
     
 
     
@@ -135,47 +132,117 @@ class JiraService:
         """Get authenticated user information using OAuth 2.0."""
         if access_token:
             return await self._get_user_info_oauth2(access_token)
-        elif self.jira:
+        elif hasattr(self, 'headers') and self.headers:
             try:
-                user = self.jira.myself()
-                return {
-                    "id": user.get("accountId"),
-                    "email": user.get("emailAddress"),
-                    "name": user.get("displayName"),
-                }
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    # Get accessible resources (sites)
+                    resources_response = await client.get(
+                        "https://api.atlassian.com/oauth/token/accessible-resources",
+                        headers=self.headers
+                    )
+                    
+                    if resources_response.status_code == 200:
+                        resources = resources_response.json()
+                        if resources:
+                            cloud_id = resources[0]['id']
+                            # Get user profile
+                            profile_response = await client.get(
+                                f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself",
+                                headers=self.headers
+                            )
+                            
+                            if profile_response.status_code == 200:
+                                profile = profile_response.json()
+                                return {
+                                    "id": profile.get("accountId"),
+                                    "email": profile.get("emailAddress"),
+                                    "name": profile.get("displayName"),
+                                }
+                    return {'id': 'unknown', 'email': 'unknown', 'name': 'Unknown User'}
             except Exception as e:
                 print(f"Error getting user info: {e}")
-                return {}
+                return {'id': 'unknown', 'email': 'unknown', 'name': 'Unknown User'}
         else:
             return {}
     
     async def get_assigned_tickets(self, limit: int = 10) -> List[Ticket]:
-        """Get tickets assigned to the current user."""
-        if not self.jira:
+        """Get tickets assigned to the current user using OAuth 2.0."""
+        if not hasattr(self, 'headers') or not self.headers:
             return []
         
         try:
-            # Get current user
-            current_user = self.jira.current_user()
-            
-            # Search for issues assigned to current user
-            jql = f'assignee = "{current_user}" AND status != "Done" ORDER BY updated DESC'
-            issues = self.jira.search_issues(jql, maxResults=limit)
-            
-            tickets = []
-            for issue in issues:
-                tickets.append(Ticket(
-                    id=str(issue.id),
-                    key=issue.key,
-                    title=issue.fields.summary,
-                    status=issue.fields.status.name,
-                    priority=issue.fields.priority.name if issue.fields.priority else "None",
-                    assignee=issue.fields.assignee.displayName if issue.fields.assignee else None,
-                    created_at=datetime.fromisoformat(issue.fields.created.replace('Z', '+00:00')),
-                    updated_at=datetime.fromisoformat(issue.fields.updated.replace('Z', '+00:00'))
-                ))
-            
-            return tickets
+            import httpx
+            async with httpx.AsyncClient() as client:
+                # Get accessible resources first
+                resources_response = await client.get(
+                    "https://api.atlassian.com/oauth/token/accessible-resources",
+                    headers=self.headers
+                )
+                
+                if resources_response.status_code != 200:
+                    print(f"Failed to get resources: {resources_response.status_code}")
+                    return []
+                    
+                resources = resources_response.json()
+                if not resources:
+                    return []
+                    
+                cloud_id = resources[0]['id']
+                
+                # Get current user info
+                user_response = await client.get(
+                    f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself",
+                    headers=self.headers
+                )
+                
+                if user_response.status_code != 200:
+                    print(f"Failed to get user info: {user_response.status_code}")
+                    return []
+                    
+                user_info = user_response.json()
+                account_id = user_info.get('accountId')
+                
+                if not account_id:
+                    return []
+                
+                # Search for issues assigned to current user
+                jql = f'assignee = "{account_id}"'
+                search_response = await client.get(
+                    f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/search",
+                    headers=self.headers,
+                    params={
+                        'jql': jql,
+                        'maxResults': limit,
+                        'fields': 'id,key,summary,status,priority,assignee,created,updated'
+                    }
+                )
+                
+                if search_response.status_code != 200:
+                    print(f"Failed to search issues: {search_response.status_code} - {search_response.text}")
+                    return []
+                
+                search_data = search_response.json()
+                issues = search_data.get('issues', [])
+
+                print(search_data)
+                
+                tickets = []
+                for issue in issues:
+                    fields = issue.get('fields', {})
+                    tickets.append(Ticket(
+                        id=str(issue.get('id', '')),
+                        key=issue.get('key', ''),
+                        title=fields.get('summary', ''),
+                        status=fields.get('status', {}).get('name', 'Unknown'),
+                        priority=fields.get('priority', {}).get('name', 'None'),
+                        assignee=fields.get('assignee', {}).get('displayName') if fields.get('assignee') else None,
+                        created_at=datetime.fromisoformat(fields.get('created', '2023-01-01T00:00:00.000+0000').replace('Z', '+00:00')),
+                        updated_at=datetime.fromisoformat(fields.get('updated', '2023-01-01T00:00:00.000+0000').replace('Z', '+00:00'))
+                    ))
+                
+                return tickets
+                
         except Exception as e:
             print(f"Error fetching assigned tickets: {e}")
             return []

@@ -22,6 +22,7 @@ class User(Base):
     # Relationships
     integrations = relationship("Integration", back_populates="user")
     dashboards = relationship("Dashboard", back_populates="user")
+    notes = relationship("Note", back_populates="user")
 
 class Integration(Base):
     __tablename__ = "integrations"
@@ -76,6 +77,9 @@ class Widget(Base):
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+# Import Note model
+from models.notes import Note
 
 # Dependency to get DB session
 def get_db():
