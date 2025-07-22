@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getDashboards } from '../utils/api'
+import CreateDashboardModal from './CreateDashboardModal'
 import { 
   Target,
   BarChart3,
@@ -20,71 +22,74 @@ import {
   MessageSquare,
   FileText,
   Users,
-  Zap
+  Zap,
+  Link
 } from 'lucide-react'
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [dashboards, setDashboards] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  useEffect(() => {
+    fetchDashboards()
+  }, [])
+
+  useEffect(() => {
+    // Navigate to default dashboard if available and we're on a generic dashboard route
+    if (dashboards.length > 0 && !isLoading) {
+      const defaultDashboard = dashboards.find(dashboard => dashboard.is_default)
+      const currentPath = location.pathname
+      
+      // If we're on /dashboard or /home (generic routes) and there's a default dashboard
+      if ((currentPath === '/dashboard' || currentPath === '/home') && defaultDashboard) {
+        navigate(`/dashboard/${defaultDashboard.id}`)
+      }
+    }
+  }, [dashboards, isLoading, location.pathname, navigate])
+
+  const fetchDashboards = async () => {
+    try {
+      setIsLoading(true)
+      const data = await getDashboards()
+      setDashboards(data)
+    } catch (error) {
+      console.error('Failed to fetch dashboards:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
 
-  const navigationItems = [
-    {
-      name: 'Dashboard',
-      icon: Home,
-      path: '/dashboard',
-      color: 'text-blue-400'
-    },
-    {
-      name: 'Projects',
-      icon: Folder,
-      path: '/projects',
-      color: 'text-green-400'
-    },
-    {
-      name: 'Analytics',
-      icon: BarChart3,
-      path: '/analytics',
-      color: 'text-purple-400'
-    },
-    {
-      name: 'Tasks',
-      icon: FileText,
-      path: '/tasks',
-      color: 'text-orange-400'
-    },
-    {
-      name: 'Team',
-      icon: Users,
-      path: '/team',
-      color: 'text-pink-400'
-    },
-    {
-      name: 'Calendar',
-      icon: Calendar,
-      path: '/calendar',
-      color: 'text-indigo-400'
-    },
-    {
-      name: 'Messages',
-      icon: MessageSquare,
-      path: '/messages',
-      color: 'text-cyan-400'
-    }
-  ]
+  const handleCreateDashboard = () => {
+    setIsModalOpen(true)
+  }
+
+  const handleDashboardCreated = () => {
+    fetchDashboards() // Refresh the list
+  }
+
+
 
   const quickActions = [
     {
-      name: 'New Project',
+      name: 'New Dashboard',
       icon: Plus,
-      action: () => console.log('New Project')
+      action: handleCreateDashboard
+    },
+    {
+      name: 'Integrations',
+      icon: Link,
+      action: () => navigate('/integrations')
     },
     {
       name: 'Search',
@@ -186,30 +191,43 @@ const Sidebar = () => {
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto py-4">
             <div className="px-3 space-y-2">
-              {navigationItems.map((item) => (
-                <motion.button
-                  key={item.name}
-                  onClick={() => navigate(item.path)}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 ${
-                    isActive(item.path)
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <item.icon className={`w-5 h-5 ${isActive(item.path) ? 'text-white' : item.color}`} />
-                  {!isCollapsed && (
-                    <motion.span
-                      variants={itemVariants}
-                      animate={isCollapsed ? "collapsed" : "expanded"}
-                      className="font-medium"
-                    >
-                      {item.name}
-                    </motion.span>
-                  )}
-                </motion.button>
-              ))}
+              {isLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                </div>
+              ) : dashboards.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-400">No dashboards found</p>
+                </div>
+              ) : (
+                dashboards.map((dashboard) => (
+                  <motion.button
+                    key={dashboard.id}
+                    onClick={() => navigate(`/dashboard/${dashboard.id}`)}
+                    className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 ${
+                      isActive(`/dashboard/${dashboard.id}`)
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    }`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <BarChart3 className={`w-5 h-5 ${isActive(`/dashboard/${dashboard.id}`) ? 'text-white' : 'text-blue-400'}`} />
+                    {!isCollapsed && (
+                      <motion.div
+                        variants={itemVariants}
+                        animate={isCollapsed ? "collapsed" : "expanded"}
+                        className="flex-1 min-w-0 text-left"
+                      >
+                        <div className="font-medium truncate">{dashboard.name}</div>
+                        {dashboard.description && (
+                          <div className="text-xs text-gray-400 truncate">{dashboard.description}</div>
+                        )}
+                      </motion.div>
+                    )}
+                  </motion.button>
+                ))
+              )}
             </div>
 
             {/* Quick Actions */}
@@ -250,7 +268,7 @@ const Sidebar = () => {
           <div className="p-4 border-t border-gray-700">
             <div className="flex items-center space-x-3 mb-3">
               <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-gray-300" />
+                <img src="https://xsgames.co/randomusers/assets/avatars/male/41.jpg" alt="User Avatar" className="rounded-full" />
               </div>
               {!isCollapsed && (
                 <motion.div
@@ -290,6 +308,13 @@ const Sidebar = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* Create Dashboard Modal */}
+      <CreateDashboardModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleDashboardCreated}
+      />
     </>
   )
 }

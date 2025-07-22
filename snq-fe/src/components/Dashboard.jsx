@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useParams } from 'react-router-dom'
+import { getDashboardById } from '../utils/api'
 import { 
   CheckCircle, 
   Folder, 
@@ -7,17 +9,43 @@ import {
   Calendar, 
   ChevronUp,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from 'lucide-react'
 
 const Dashboard = () => {
+  const { dashboardId } = useParams()
   const [isLoaded, setIsLoaded] = useState(false)
+  const [dashboardData, setDashboardData] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     // Trigger animations after component mounts
     const timer = setTimeout(() => setIsLoaded(true), 100)
     return () => clearTimeout(timer)
   }, [])
+
+  useEffect(() => {
+    // Fetch dashboard data when dashboardId changes
+    if (dashboardId) {
+      fetchDashboardData()
+    }
+  }, [dashboardId])
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true)
+      setError('')
+      const data = await getDashboardById(dashboardId)
+      setDashboardData(data)
+    } catch (err) {
+      setError(err.message || 'Failed to fetch dashboard data')
+      console.error('Dashboard fetch error:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Animation variants
   const containerVariants = {
@@ -211,6 +239,47 @@ const Dashboard = () => {
     >
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Dashboard Header */}
+        <motion.div
+          className="mb-8"
+          variants={itemVariants}
+        >
+          {isLoading ? (
+            <div className="flex items-center space-x-3">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-100 mb-2">Loading Dashboard...</h1>
+                <p className="text-gray-400">Fetching dashboard data</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div>
+              <h1 className="text-3xl font-bold text-gray-100 mb-2">Dashboard Error</h1>
+              <p className="text-red-400 mb-2">{error}</p>
+              <button
+                onClick={fetchDashboardData}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-3xl font-bold text-gray-100 mb-2">
+                {dashboardData?.name || (dashboardId ? `Dashboard ${dashboardId}` : 'Dashboard')}
+              </h1>
+              <p className="text-gray-400">
+                {dashboardData?.description || (dashboardId ? `Viewing dashboard with ID: ${dashboardId}` : 'Select a dashboard from the sidebar')}
+              </p>
+              {dashboardData?.is_default && (
+                <span className="inline-block mt-2 px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
+                  Default Dashboard
+                </span>
+              )}
+            </div>
+          )}
+        </motion.div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-8">

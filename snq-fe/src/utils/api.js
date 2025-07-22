@@ -18,15 +18,16 @@ export const loginUser = async (username, password) => {
     })
 
     if (!response.ok) {
+      // Don't trigger logout for login failures
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
     }
 
     const data = await response.json()
-    
+
     // Store the token
     localStorage.setItem('synq_token', data.token || data.access_token)
-    
+
     // Create user object from response
     const userData = {
       id: data.user?.id || data.id,
@@ -36,7 +37,7 @@ export const loginUser = async (username, password) => {
       role: data.user?.role || data.role || 'user',
       token: data.token || data.access_token
     }
-    
+
     return userData
   } catch (error) {
     console.error('Login error:', error)
@@ -61,6 +62,7 @@ export const makeAuthenticatedRequest = async (url, options = {}) => {
   
   const defaultHeaders = {
     'Content-Type': 'application/json',
+    'accept': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` })
   }
 
@@ -73,9 +75,38 @@ export const makeAuthenticatedRequest = async (url, options = {}) => {
   })
 
   if (!response.ok) {
+    // Handle 401 Unauthorized - trigger logout
+    if (response.status === 401) {
+      clearAuthData()
+      // Dispatch a custom event to notify the app about logout
+      window.dispatchEvent(new CustomEvent('auth:logout', { 
+        detail: { reason: 'unauthorized' } 
+      }))
+      throw new Error('Session expired. Please log in again.')
+    }
+    
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
   }
 
   return response.json()
+}
+
+export const getDashboards = async () => {
+  return makeAuthenticatedRequest('/dashboards')
+}
+
+export const createDashboard = async (dashboardData) => {
+  return makeAuthenticatedRequest('/dashboards', {
+    method: 'POST',
+    body: JSON.stringify(dashboardData)
+  })
+}
+
+export const getIntegrations = async () => {
+  return makeAuthenticatedRequest('/apps')
+}
+
+export const getDashboardById = async (dashboardId) => {
+  return makeAuthenticatedRequest(`/dashboards/${dashboardId}`)
 } 
