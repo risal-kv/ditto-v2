@@ -246,74 +246,179 @@ const Dashboard = () => {
       initial="hidden"
       animate={isLoaded ? "visible" : "hidden"}
     >
-      {/* Header */}
-      <motion.header 
-        className="bg-gray-800 border-b border-gray-700"
+      {/* Sidebar */}
+      <motion.aside 
+        className="fixed left-0 top-0 h-full w-64 bg-gray-800 border-r border-gray-700 z-50"
         variants={itemVariants}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Target className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-gray-100">Synq</h1>
-              </div>
-              
-              <nav className="flex space-x-1">
-                <button 
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-                >
-                  Dashboard
-                </button>
-                <button 
-                  onClick={() => setActiveTab('projects')}
-                  className={`nav-tab ${activeTab === 'projects' ? 'active' : ''}`}
-                >
-                  Projects
-                </button>
-                <button 
-                  onClick={() => setActiveTab('analytics')}
-                  className={`nav-tab ${activeTab === 'analytics' ? 'active' : ''}`}
-                >
-                  Analytics
-                </button>
-              </nav>
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center space-x-3 p-6 border-b border-gray-700">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Target className="w-5 h-5 text-white" />
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-gray-300">
-                <span className="text-sm">Welcome, {user?.name}</span>
-              </div>
-              <button className="btn-primary flex items-center space-x-2">
-                <Volume2 className="w-4 h-4" />
-                <span>Live Mode</span>
-              </button>
-              <button className="relative p-2 text-gray-400 hover:text-gray-200">
-                <Bell className="w-5 h-5" />
-                <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              </button>
-              <button 
-                onClick={handleLogout}
-                className="p-2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
-                title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
+            <h1 className="text-xl font-bold text-gray-100">Synq</h1>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-2">
+            <motion.button 
+              onClick={() => setActiveTab('dashboard')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                activeTab === 'dashboard' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100'
+              }`}
+              whileHover={{ x: 5 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <BarChart3 className="w-5 h-5" />
+              <span className="font-medium">Dashboard</span>
+            </motion.button>
+
+            <motion.button 
+              onClick={() => setActiveTab('projects')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                activeTab === 'projects' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100'
+              }`}
+              whileHover={{ x: 5 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Folder className="w-5 h-5" />
+              <span className="font-medium">Projects</span>
+            </motion.button>
+
+            <motion.button 
+              onClick={() => setActiveTab('analytics')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                activeTab === 'analytics' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100'
+              }`}
+              whileHover={{ x: 5 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <TrendingUp className="w-5 h-5" />
+              <span className="font-medium">Analytics</span>
+            </motion.button>
+
+            <motion.button 
+              onClick={() => setActiveTab('tasks')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                activeTab === 'tasks' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100'
+              }`}
+              whileHover={{ x: 5 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-medium">Tasks</span>
+            </motion.button>
+
+            <motion.button 
+              onClick={() => setActiveTab('calendar')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                activeTab === 'calendar' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100'
+              }`}
+              whileHover={{ x: 5 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="font-medium">Calendar</span>
+            </motion.button>
+
+            <motion.button 
+              onClick={() => setActiveTab('integrations')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                activeTab === 'integrations' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100'
+              }`}
+              whileHover={{ x: 5 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Link className="w-5 h-5" />
+              <span className="font-medium">Integrations</span>
+            </motion.button>
+          </nav>
+
+          {/* User Section */}
+          <div className="p-4 border-t border-gray-700">
+            <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-700/50">
               <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4 text-gray-300" />
               </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-100 truncate">{user?.name}</p>
+                <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+              </div>
+              <motion.button 
+                onClick={handleLogout}
+                className="p-1 text-gray-400 hover:text-gray-200 transition-colors duration-200"
+                title="Logout"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <LogOut className="w-4 h-4" />
+              </motion.button>
             </div>
           </div>
         </div>
-      </motion.header>
+      </motion.aside>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column */}
-          <div className="lg:col-span-2 space-y-8">
+      {/* Top Bar */}
+      <motion.div 
+        className="fixed top-0 left-64 right-0 h-16 bg-gray-800 border-b border-gray-700 z-40"
+        variants={itemVariants}
+      >
+        <div className="flex items-center justify-between h-full px-6">
+          <div className="flex items-center space-x-4">
+            <h2 className="text-lg font-semibold text-gray-100 capitalize">{activeTab}</h2>
+            <div className="flex items-center space-x-2 text-gray-400">
+              <span className="text-sm">Welcome back, {user?.name}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <motion.button 
+              className="btn-primary flex items-center space-x-2"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Volume2 className="w-4 h-4" />
+              <span>Live Mode</span>
+            </motion.button>
+            <motion.button 
+              className="relative p-2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Bell className="w-5 h-5" />
+              <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div 
+        className="ml-64 pt-16"
+        variants={itemVariants}
+      >
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <motion.div 
+            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+            variants={itemVariants}
+          >
+            {/* Left Column */}
+            <motion.div 
+              className="lg:col-span-2 space-y-8"
+              variants={itemVariants}
+            >
             {/* Summary Cards */}
             <motion.div 
               className="grid grid-cols-2 lg:grid-cols-4 gap-4"
@@ -464,7 +569,7 @@ const Dashboard = () => {
                 ))}
               </div>
             </motion.div>
-          </div>
+          </motion.div>
 
           {/* Right Column */}
           <motion.div 
@@ -559,12 +664,13 @@ const Dashboard = () => {
               </div>
             </motion.div>
           </motion.div>
+        </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Bottom Bar */}
       <motion.div 
-        className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700"
+        className="fixed bottom-0 left-64 right-0 bg-gray-800 border-t border-gray-700"
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         transition={{ delay: 1, duration: 0.5 }}
