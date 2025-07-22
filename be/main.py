@@ -521,10 +521,14 @@ async def google_callback(
 async def jira_connect(
     current_user: DBUser = Depends(get_current_active_user)
 ):
-    """Get Jira OAuth URL."""
-    jira_service = JiraService("", settings.jira_server)
-    oauth_url = await jira_service.get_oauth_url(state=str(current_user.id))
-    return {"oauth_url": oauth_url}
+    """Get Jira OAuth URL for authentication."""
+    try:
+        jira_service = JiraService("", settings.jira_server)
+        oauth_url = await jira_service.get_oauth_url(state=str(current_user.id))
+        return {"oauth_url": oauth_url}
+    except Exception as e:
+        print(f"Error in jira_connect: {e}")
+        raise HTTPException(status_code=500, detail=f"OAuth setup failed: {str(e)}")
 
 @app.get("/integrations/jira/callback")
 async def jira_callback(
