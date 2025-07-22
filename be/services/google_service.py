@@ -5,6 +5,7 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import Flow
 from typing import List, Optional
 from datetime import datetime, timedelta
+import warnings
 from schemas.models import CalendarEvent, Task, Email
 from config.settings import settings
 
@@ -33,11 +34,11 @@ class GoogleService:
                 }
             },
             scopes=[
-                "https://www.googleapis.com/auth/calendar.readonly",
-                "https://www.googleapis.com/auth/tasks.readonly",
+                "https://www.googleapis.com/auth/calendar",
                 "https://www.googleapis.com/auth/gmail.readonly",
                 "https://www.googleapis.com/auth/userinfo.email",
-                "https://www.googleapis.com/auth/userinfo.profile"
+                "https://www.googleapis.com/auth/userinfo.profile",
+                "openid"
             ]
         )
         flow.redirect_uri = settings.google_redirect_uri
@@ -45,36 +46,64 @@ class GoogleService:
         authorization_url, _ = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true',
-            state=state
+            state=state,
+            prompt='consent'  # Force consent screen to get refresh token
         )
         return authorization_url
     
     async def exchange_code_for_token(self, code: str) -> dict:
         """Exchange authorization code for access token."""
-        flow = Flow.from_client_config(
-            {
-                "web": {
-                    "client_id": settings.google_client_id,
-                    "client_secret": settings.google_client_secret,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [settings.google_redirect_uri]
-                }
-            },
-            scopes=[
-                "https://www.googleapis.com/auth/calendar.readonly",
-                "https://www.googleapis.com/auth/tasks.readonly",
-                "https://www.googleapis.com/auth/gmail.readonly"
-            ]
-        )
-        flow.redirect_uri = settings.google_redirect_uri
-        flow.fetch_token(code=code)
-        
-        return {
-            "access_token": flow.credentials.token,
-            "refresh_token": flow.credentials.refresh_token,
-            "expires_at": flow.credentials.expiry.isoformat() if flow.credentials.expiry else None
-        }
+        try:
+            # Temporarily suppress warnings about scope changes
+            warnings.filterwarnings('ignore', message='Scope has changed')
+            
+            flow = Flow.from_client_config(
+                {
+                    "web": {
+                        "client_id": settings.google_client_id,
+                        "client_secret": settings.google_client_secret,
+                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                        "token_uri": "https://oauth2.googleapis.com/token",
+                        "redirect_uris": [settings.google_redirect_uri]
+                    }
+                },
+                scopes=[
+                    "https://www.googleapis.com/auth/calendar",
+                    "https://www.googleapis.com/auth/gmail.readonly",
+                    "https://www.googleapis.com/auth/userinfo.email",
+                    "https://www.googleapis.com/auth/userinfo.profile",
+                    "openid"
+                ]
+            )
+            flow.redirect_uri = settings.google_redirect_uri
+            
+            # Fetch token while ignoring scope change warnings
+            try:
+                flow.fetch_token(code=code)
+            except Exception as token_error:
+                print(f"Token fetch error details: {str(token_error)}")
+                # Try to continue if we have credentials despite the error
+                if not flow.credentials or not flow.credentials.token:
+                    raise token_error
+            
+            # Reset warnings to default
+            warnings.resetwarnings()
+            
+            # Check if we have valid credentials
+            if not flow.credentials or not flow.credentials.token:
+                raise Exception("Failed to obtain valid credentials")
+                
+            return {
+                "access_token": flow.credentials.token,
+                "refresh_token": flow.credentials.refresh_token,
+                "expires_at": flow.credentials.expiry.isoformat() if flow.credentials.expiry else None
+            }
+        except Exception as e:
+            print(f"Error exchanging code for token: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return {}
     
     def refresh_credentials(self):
         """Refresh access token if needed."""
@@ -83,20 +112,27 @@ class GoogleService:
             return self.credentials.token
         return self.access_token
     
-    async def get_calendar_events(self, limit: int = 10, days_ahead: int = 7) -> List[CalendarEvent]:
-        """Get upcoming calendar events."""
+    async def get_calendar_events(self, limit: int = 10, days_ahead: int = 7, start_date: datetime = None, end_date: datetime = None) -> List[CalendarEvent]:
+        """Get calendar events within a date range."""
         try:
             self.refresh_credentials()
             service = build('calendar', 'v3', credentials=self.credentials)
             
-            # Get events for the next week
-            now = datetime.utcnow()
-            time_max = now + timedelta(days=days_ahead)
+            # Use provided dates or default to current time + days_ahead
+            if start_date is None:
+                start_time = datetime.utcnow()
+            else:
+                start_time = start_date
+                
+            if end_date is None:
+                end_time = start_time + timedelta(days=days_ahead)
+            else:
+                end_time = end_date
             
             events_result = service.events().list(
                 calendarId='primary',
-                timeMin=now.isoformat() + 'Z',
-                timeMax=time_max.isoformat() + 'Z',
+                timeMin=start_time.isoformat() + 'Z',
+                timeMax=end_time.isoformat() + 'Z',
                 maxResults=limit,
                 singleEvents=True,
                 orderBy='startTime'
@@ -218,3 +254,20 @@ class GoogleService:
         except Exception as e:
             print(f"Error fetching emails: {e}")
             return []
+    
+    async def get_user_info(self) -> dict:
+        """Get user info."""
+        try:
+            self.refresh_credentials()
+            service = build('oauth2', 'v2', credentials=self.credentials)
+            
+            user_info = service.userinfo().get().execute()
+            return {
+                "id": user_info.get('id'),
+                "name": user_info.get('name'),
+                "email": user_info.get('email'),
+                "picture": user_info.get('picture')
+            }
+        except Exception as e:
+            print(f"Error fetching user info: {e}")
+            return {}

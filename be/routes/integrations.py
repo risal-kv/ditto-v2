@@ -136,7 +136,7 @@ async def google_connect(
 ):
     """Get Google OAuth URL."""
     google_service = GoogleService("", "")
-    oauth_url = google_service.get_oauth_url(str(current_user.id))
+    oauth_url = await google_service.get_oauth_url(str(current_user.id))
     return {"url": oauth_url}
 
 @router.get("/integrations/google/callback")
@@ -171,11 +171,15 @@ async def google_callback(
     refresh_token = token_info.get("refresh_token", "")
     
     # Get user info to verify connection
-    google_service = GoogleService(access_token, refresh_token)
-    user_info = await google_service.get_user_info()
-    
-    if not user_info:
-        raise HTTPException(status_code=400, detail="Failed to get user info")
+    try:
+        google_service = GoogleService(access_token, refresh_token)
+        user_info = await google_service.get_user_info()
+        
+        if not user_info:
+            raise HTTPException(status_code=400, detail="Failed to get user info")
+    except Exception as e:
+        print(f"Error getting user info: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error getting user info: {str(e)}")
     
     # Check if integration already exists
     integration = db.query(Integration).filter(
