@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect to Jira - Productivity Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #0052cc;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #586069;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .jira-button {
+            background-color: #0052cc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: inline-flex;
+            align-items: center;
+        }
+        .jira-button:hover {
+            background-color: #0747a6;
+        }
+        .jira-icon {
+            margin-right: 10px;
+            width: 24px;
+            height: 24px;
+        }
+        .error-message {
+            color: #cb2431;
+            margin-top: 20px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Connect to Jira</h1>
+        <p>Link your Jira account to access your issues, projects, and sprints directly from your productivity dashboard.</p>
+        
+        <button class="jira-button" id="connectBtn">
+            <svg class="jira-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white">
+                <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129V8.915A5.214 5.214 0 0 0 18.294 4.7V5.757a1.005 1.005 0 0 1-1.005 1.005zm5.723-5.756H11.459a5.215 5.215 0 0 0 5.215 5.214h2.129V2.158A5.214 5.214 0 0 0 24.017 2.158V1.005A1.005 1.005 0 0 1 23.017 0z"/>
+            </svg>
+            Connect Jira
+        </button>
+        
+        <p class="loading" id="loadingMessage">Connecting to Jira...</p>
+        <p class="error-message" id="errorMessage"></p>
+    </div>
+
+    <script>
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            const loadingMessage = document.getElementById('loadingMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            loadingMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+            connectBtn.disabled = true;
+            
+            try {
+                // Get auth token from localStorage if available
+                const token = localStorage.getItem('access_token');
+                
+                if (!token) {
+                    // If no token, redirect to login page
+                    errorMessage.textContent = 'Please login first!';
+                    errorMessage.style.display = 'block';
+                    loadingMessage.style.display = 'none';
+                    connectBtn.disabled = false;
+                    return;
+                }
+                
+                // Call the backend API to get OAuth URL
+                const response = await fetch('/integrations/jira/connect', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to get OAuth URL');
+                }
+                
+                const data = await response.json();
+                
+                // Redirect to Jira OAuth page
+                window.location.href = data.oauth_url;
+                
+            } catch (error) {
+                errorMessage.textContent = error.message || 'Failed to connect to Jira';
+                errorMessage.style.display = 'block';
+                loadingMessage.style.display = 'none';
+                connectBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

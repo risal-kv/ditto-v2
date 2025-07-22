@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect to GitHub - Productivity Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #24292e;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #586069;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .github-button {
+            background-color: #24292e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: inline-flex;
+            align-items: center;
+        }
+        .github-button:hover {
+            background-color: #2c3136;
+        }
+        .github-icon {
+            margin-right: 10px;
+            width: 24px;
+            height: 24px;
+        }
+        .error-message {
+            color: #cb2431;
+            margin-top: 20px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Connect to GitHub</h1>
+        <p>Link your GitHub account to access your repositories, pull requests, and issues directly from your productivity dashboard.</p>
+        
+        <button class="github-button" id="connectBtn">
+            <svg class="github-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="white">
+                <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+            Connect GitHub
+        </button>
+        
+        <p class="loading" id="loadingMessage">Connecting to GitHub...</p>
+        <p class="error-message" id="errorMessage"></p>
+    </div>
+
+    <script>
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            const loadingMessage = document.getElementById('loadingMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            loadingMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+            connectBtn.disabled = true;
+            
+            try {
+                // Get auth token from localStorage if available
+                const token = localStorage.getItem('access_token');
+                
+                if (!token) {
+                    // If no token, redirect to login page
+                    errorMessage.textContent = 'Please login first!';
+                    errorMessage.style.display = 'block';
+                    loadingMessage.style.display = 'none';
+                    connectBtn.disabled = false;
+                    return;
+                }
+                
+                // Call the backend API to get OAuth URL
+                const response = await fetch('/integrations/github/connect', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to get OAuth URL');
+                }
+                
+                const data = await response.json();
+                
+                // Redirect to GitHub OAuth page
+                window.location.href = data.oauth_url;
+                
+            } catch (error) {
+                errorMessage.textContent = error.message || 'Failed to connect to GitHub';
+                errorMessage.style.display = 'block';
+                loadingMessage.style.display = 'none';
+                connectBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

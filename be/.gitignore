@@ -116,9 +116,6 @@ Thumbs.db
 # Node modules (if any frontend exists)
 node_modules/
 
-# Static files
-/static/
-
 # Coverage reports
 coverage/
 
