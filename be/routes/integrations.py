@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 from typing import List
 import json
 
-from be.models.database import get_db, User as DBUser, Integration
-from be.schemas.models import Integration as IntegrationSchema
-from be.utils.auth import get_current_active_user
-from be.services.github_service import GitHubService
-from be.services.google_service import GoogleService
-from be.services.jira_service import JiraService
-from be.config.settings import settings
+from models.database import get_db, User as DBUser, Integration
+from schemas.models import Integration as IntegrationSchema
+from utils.auth import get_current_active_user
+from services.github_service import GitHubService
+from services.google_service import GoogleService
+from services.jira_service import JiraService
+from config.settings import settings
 
 router = APIRouter(
     tags=["integrations"]
@@ -206,7 +206,7 @@ async def google_callback(
     # Redirect to frontend
     return {"success": True, "integration": "google", "email": user_info.get("email")}
 
-@app.get("/integrations/jira/connect")
+@router.get("/integrations/jira/connect")
 async def jira_connect(
     current_user: DBUser = Depends(get_current_active_user)
 ):
@@ -219,7 +219,7 @@ async def jira_connect(
         print(f"Error in jira_connect: {e}")
         raise HTTPException(status_code=500, detail=f"OAuth setup failed: {str(e)}")
 
-@app.get("/integrations/jira/callback")
+@router.get("/integrations/jira/callback")
 async def jira_callback(
     request: Request,
     db: Session = Depends(get_db)

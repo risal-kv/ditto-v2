@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional, Union
 import logging
 from dataclasses import dataclass
 
-from be.config.settings import settings
+from config.settings import settings
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

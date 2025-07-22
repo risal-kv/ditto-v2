@@ -4,8 +4,8 @@ News routes for fetching competitor news by company name or domain.
 from fastapi import APIRouter, Query
 from typing import Dict, List, Optional
 
-from be.news import get_news_by_company, get_news_by_domain
-from be.news.service import NewsBase
+from news import get_news_by_company, get_news_by_domain
+from news.service import NewsBase
 
 router = APIRouter(
     prefix="/news",
